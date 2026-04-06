@@ -379,9 +379,15 @@
       </div>
     </div>
 
-    <!-- Quick searches -->
+    <!-- Covered items (DB keywords) -->
+    <div style="width:100%;max-width:640px;margin-bottom:8px;position:relative">
+      <div style="display:flex;align-items:center;gap:6px;padding:9px 14px;background:var(--surface2);border:1px solid var(--border-md);border-radius:10px;font-size:12px;color:var(--tx3)">
+        <i class="fas fa-database" style="font-size:11px;opacity:0.7"></i>
+        <span data-i18n="hero.coverage.note">β版収録機材（6機材）：下記のキーワードのみ実績データを表示します。</span>
+      </div>
+    </div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:36px;position:relative">
-      <span data-i18n="hero.trending" style="font-size:12px;color:var(--tx3);align-self:center;font-weight:500">よく検索：</span>
+      <span data-i18n="hero.trending" style="font-size:12px;color:var(--tx3);align-self:center;font-weight:500">β 収録機材：</span>
       <button class="quick-tag" onclick="quickSearch('Neve 1073')">Neve 1073</button>
       <button class="quick-tag" onclick="quickSearch('Neumann U87')">Neumann U87</button>
       <button class="quick-tag" onclick="quickSearch('UA 1176')">UA 1176</button>
@@ -595,12 +601,15 @@
           <tbody id="result-tbody"></tbody>
         </table>
 
-        <!-- Empty state -->
-        <div id="empty-state" style="display:none;padding:64px 20px;text-align:center">
-          <div style="font-size:42px;margin-bottom:14px">🔇</div>
-          <p data-i18n="empty.title" style="color:var(--tx2);font-size:15px;font-weight:600">該当する結果が見つかりませんでした</p>
-          <p data-i18n="empty.desc" style="color:var(--tx3);font-size:13px;margin-top:6px">フィルタを変更するか、別のキーワードで検索してください</p>
-          <button data-i18n="empty.reset" class="btn-ghost" style="margin-top:16px;padding:8px 20px;font-size:13px" onclick="resetFilters()">フィルタをリセット</button>
+        <!-- Empty state (content set dynamically by renderResults) -->
+        <div id="empty-state" style="display:none;padding:56px 20px;text-align:center">
+          <div id="empty-icon" style="font-size:42px;margin-bottom:14px">🔇</div>
+          <p id="empty-title" style="color:var(--tx2);font-size:15px;font-weight:600"></p>
+          <p id="empty-desc" style="color:var(--tx3);font-size:13px;margin-top:6px"></p>
+          <!-- chips shown when S.noMatch -->
+          <div id="empty-chips" style="display:none;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px"></div>
+          <!-- reset button shown when filter-narrowed -->
+          <button id="empty-reset" class="btn-ghost" style="margin-top:16px;padding:8px 20px;font-size:13px;display:none" onclick="resetFilters()"></button>
         </div>
       </div>
 
@@ -1082,7 +1091,8 @@ const I18N = {
     "hero.h1.line2":        "瞬間ディグ。",
     "hero.desc":            "eBay・Reverb・メルカリ・ヤフオク・Amazon・HARD OFF・Five G等、<br class=\"col-hidden-md\">国内外11プラットフォームの売買実績を横断検索。<br class=\"col-hidden-md\">適正価格の判断をサポートします。",
     "hero.search.placeholder": "例：Neve 1073、Neumann U87、SSL G-Bus...",
-    "hero.trending":        "よく検索：",
+    "hero.trending":        "β 収録機材：",
+    "hero.coverage.note":   "β版収録機材（6機材）：下記のキーワードのみ実績データを表示します。",
     "hero.history.label":   "最近の検索",
     "hero.history.clear":   "クリア",
     "btn.search":           "検索",
@@ -1127,6 +1137,8 @@ const I18N = {
     "empty.title":          "該当する結果が見つかりませんでした",
     "empty.desc":           "フィルタを変更するか、別のキーワードで検索してください",
     "empty.reset":          "フィルタをリセット",
+    "empty.nomatch.title":  (q) => `「${q}」はβ版未収録です`,
+    "empty.nomatch.desc":   "現在データを収録している機材は以下の6種類です。今後順次拡充予定。",
     "modal.price":          "価格",
     "modal.condition":      "機材状態",
     "modal.date":           "取引日",
@@ -1166,7 +1178,8 @@ const I18N = {
     "hero.h1.line2":        "found in a flash.",
     "hero.desc":            "Instantly compare sold listings &amp; active deals across eBay, Reverb, Mercari, Yahoo Auctions, Amazon, HARD OFF, Five G and more — 11 platforms worldwide.",
     "hero.search.placeholder": "e.g. Neve 1073, Neumann U87, SSL G-Bus...",
-    "hero.trending":        "Popular:",
+    "hero.trending":        "β In Database:",
+    "hero.coverage.note":   "β version covers 6 items: only the keywords below have real price data.",
     "hero.history.label":   "Recent searches",
     "hero.history.clear":   "Clear",
     "btn.search":           "Search",
@@ -1209,6 +1222,8 @@ const I18N = {
     "empty.title":          "No results found",
     "empty.desc":           "Try adjusting the filters or use a different keyword",
     "empty.reset":          "Reset Filters",
+    "empty.nomatch.title":  (q) => `"${q}" is not in the β database`,
+    "empty.nomatch.desc":   "The β version currently covers 6 items listed below. More coming soon.",
     "modal.price":          "Price",
     "modal.condition":      "Condition",
     "modal.date":           "Date",
@@ -1300,6 +1315,7 @@ let S = {
   conds: new Set(),
   statuses: new Set(),
   currency: "JPY", // "JPY" | "USD"
+  noMatch: false,  // true when query didn't match any DB key
 };
 
 // ═══════════════════════════════════════════
@@ -1360,7 +1376,8 @@ function doSearch() {
       const kNS = k.replace(/\s/g,'');
       return nq.includes(k) || k.includes(nq) || nqNS.includes(kNS) || kNS.includes(nqNS);
     });
-    const data = key ? [...DB[key]] : genFallback(q);
+    S.noMatch = !key; // true when query doesn't match any DB entry
+    const data = key ? [...DB[key]] : []; // no fake data for unrecognized queries
     // Preprocess prices so priceJPY is always a valid number
     data.forEach((r,i) => {
       r.id = i;
@@ -1556,10 +1573,42 @@ function renderResults() {
   renderStats(S.filtered);
   renderTrend(S.query);
 
-  const empty = document.getElementById("empty-state");
+  const empty     = document.getElementById("empty-state");
+  const emptyIcon  = document.getElementById("empty-icon");
+  const emptyTitle = document.getElementById("empty-title");
+  const emptyDesc  = document.getElementById("empty-desc");
+  const emptyChips = document.getElementById("empty-chips");
+  const emptyReset = document.getElementById("empty-reset");
   const tbody = document.getElementById("result-tbody");
-  if(total===0){ tbody.innerHTML=""; empty.style.display="block"; }
-  else         { empty.style.display="none"; tbody.innerHTML=page.map((r,i)=>rowHTML(r,start+i)).join(""); }
+
+  if(total===0){
+    tbody.innerHTML = "";
+    empty.style.display = "block";
+    if(S.noMatch) {
+      // Query didn't match any DB entry → show supported keywords
+      emptyIcon.textContent = "🔍";
+      emptyTitle.textContent = t('empty.nomatch.title', S.query);
+      emptyDesc.textContent  = t('empty.nomatch.desc');
+      emptyChips.style.display = "flex";
+      emptyChips.innerHTML = Object.keys(DB).map(k => {
+        const label = k.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        return `<button class="quick-tag" onclick="quickSearch('${label}')" style="font-size:13px;padding:6px 16px">${label}</button>`;
+      }).join('');
+      emptyReset.style.display = "none";
+    } else {
+      // Filter-narrowed to zero
+      emptyIcon.textContent = "🔇";
+      emptyTitle.textContent = t('empty.title');
+      emptyDesc.textContent  = t('empty.desc');
+      emptyChips.style.display = "none";
+      emptyChips.innerHTML = "";
+      emptyReset.style.display = "";
+      emptyReset.textContent = t('empty.reset');
+    }
+  } else {
+    empty.style.display = "none";
+    tbody.innerHTML = page.map((r,i)=>rowHTML(r,start+i)).join("");
+  }
 
   renderPagination(total, start, end);
 }
