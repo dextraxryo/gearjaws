@@ -317,12 +317,16 @@
         <span class="logo-shark">🦈</span>
         <div>
           <span style="font-size:17px;font-weight:800;color:var(--tx1);letter-spacing:-0.3px">機材屋ジョーズ</span>
-          <span style="font-size:10px;color:var(--tx3);margin-left:6px;font-weight:500" class="col-hidden-md">中古機材リサーチャー</span>
+          <span data-i18n="site.tagline" style="font-size:10px;color:var(--tx3);margin-left:6px;font-weight:500" class="col-hidden-md">中古機材リサーチャー</span>
         </div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:11px;color:var(--tx3);border:1px solid var(--border-md);background:var(--surface2);padding:2px 10px;border-radius:20px;font-weight:500">β Demo</span>
+      <div style="display:flex;border:1px solid var(--border-md);border-radius:8px;overflow:hidden">
+        <button id="lang-ja-btn" onclick="setLang('ja')" style="padding:4px 11px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.15s">JP</button>
+        <button id="lang-en-btn" onclick="setLang('en')" style="padding:4px 11px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:var(--surface2);color:var(--tx2);transition:all 0.15s">EN</button>
+      </div>
       <button id="filter-toggle-btn" onclick="toggleMobileFilter()" style="display:none;background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;padding:4px 8px">
         <i class="fas fa-sliders-h"></i>
       </button>
@@ -344,14 +348,14 @@
       <!-- Status pill -->
       <div style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--tx2);background:var(--surface);border:1px solid var(--border-md);padding:5px 14px;border-radius:20px;margin-bottom:22px;box-shadow:var(--shadow-sm);font-weight:500">
         <span style="width:7px;height:7px;background:#22c55e;border-radius:50%;display:inline-block"></span>
-        11プラットフォームを横断検索
+        <span data-i18n="hero.platforms">11プラットフォームを横断検索</span>
       </div>
 
-      <h1 style="font-size:clamp(30px,5vw,54px);font-weight:800;line-height:1.12;margin:0 0 18px;color:var(--tx1)">
-        <span class="gradient-text">中古ハードの相場を、</span><br>
-        <span>瞬間ディグ。</span>
+      <h1 id="hero-h1" style="font-size:clamp(30px,5vw,54px);font-weight:800;line-height:1.12;margin:0 0 18px;color:var(--tx1)">
+        <span class="gradient-text" data-i18n="hero.h1.line1">中古ハードの相場を、</span><br>
+        <span data-i18n="hero.h1.line2">瞬間ディグ。</span>
       </h1>
-      <p style="color:var(--tx2);font-size:clamp(14px,2vw,17px);max-width:520px;margin:0 auto;line-height:1.75">
+      <p id="hero-desc" style="color:var(--tx2);font-size:clamp(14px,2vw,17px);max-width:520px;margin:0 auto;line-height:1.75">
         eBay・Reverb・メルカリ・ヤフオク・Amazon・HARD OFF・Five G等、<br class="col-hidden-md">
         国内外11プラットフォームの売買実績を横断検索。<br class="col-hidden-md">
         適正価格の判断をサポートします。
@@ -365,18 +369,19 @@
           <i class="fas fa-search" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--tx3);font-size:15px"></i>
           <input type="text" id="hero-input" class="search-input"
             style="width:100%;padding:16px 16px 16px 46px;font-size:16px;border-radius:14px;box-shadow:var(--shadow-md)"
+            data-i18n-placeholder="hero.search.placeholder"
             placeholder="例：Neve 1073、Neumann U87、SSL G-Bus..."
             onkeydown="if(event.key==='Enter')doSearch()">
         </div>
-        <button class="btn-primary" style="padding:0 26px;border-radius:14px;font-size:15px;white-space:nowrap" onclick="doSearch()">
-          <i class="fas fa-search" style="margin-right:8px"></i>検索
+        <button id="hero-search-btn" class="btn-primary" style="padding:0 26px;border-radius:14px;font-size:15px;white-space:nowrap" onclick="doSearch()">
+          <i class="fas fa-search" style="margin-right:8px"></i><span data-i18n="btn.search">検索</span>
         </button>
       </div>
     </div>
 
     <!-- Quick searches -->
     <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:36px;position:relative">
-      <span style="font-size:12px;color:var(--tx3);align-self:center;font-weight:500">よく検索：</span>
+      <span data-i18n="hero.trending" style="font-size:12px;color:var(--tx3);align-self:center;font-weight:500">よく検索：</span>
       <button class="quick-tag" onclick="quickSearch('Neve 1073')">Neve 1073</button>
       <button class="quick-tag" onclick="quickSearch('Neumann U87')">Neumann U87</button>
       <button class="quick-tag" onclick="quickSearch('UA 1176')">UA 1176</button>
@@ -388,8 +393,8 @@
     <!-- Search history -->
     <div id="history-box" style="width:100%;max-width:640px;margin-bottom:32px;display:none">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <span style="font-size:13px;color:var(--tx2);font-weight:500"><i class="fas fa-history" style="margin-right:6px;font-size:11px;color:var(--tx3)"></i>最近の検索</span>
-        <button onclick="clearHistory()" style="font-size:12px;color:var(--tx3);background:none;border:none;cursor:pointer">クリア</button>
+        <span style="font-size:13px;color:var(--tx2);font-weight:500"><i class="fas fa-history" style="margin-right:6px;font-size:11px;color:var(--tx3)"></i><span data-i18n="hero.history.label">最近の検索</span></span>
+        <button onclick="clearHistory()" style="font-size:12px;color:var(--tx3);background:none;border:none;cursor:pointer" data-i18n="hero.history.clear">クリア</button>
       </div>
       <div id="history-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
     </div>
@@ -415,23 +420,23 @@
     <div style="max-width:880px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:28px;text-align:center">
       <div>
         <div class="feat-icon">🔍</div>
-        <div style="font-weight:700;font-size:14px;color:var(--tx1);margin-bottom:5px">横断検索</div>
-        <div style="font-size:12px;color:var(--tx3);line-height:1.7">11プラットフォームを<br>一括比較</div>
+        <div data-i18n="feat.cross.title" style="font-weight:700;font-size:14px;color:var(--tx1);margin-bottom:5px">横断検索</div>
+        <div data-i18n-html="feat.cross.desc" style="font-size:12px;color:var(--tx3);line-height:1.7">11プラットフォームを<br>一括比較</div>
       </div>
       <div>
         <div class="feat-icon">📊</div>
-        <div style="font-weight:700;font-size:14px;color:var(--tx1);margin-bottom:5px">価格統計</div>
-        <div style="font-size:12px;color:var(--tx3);line-height:1.7">平均・中央値・レンジを<br>自動集計</div>
+        <div data-i18n="feat.stats.title" style="font-weight:700;font-size:14px;color:var(--tx1);margin-bottom:5px">価格統計</div>
+        <div data-i18n-html="feat.stats.desc" style="font-size:12px;color:var(--tx3);line-height:1.7">平均・中央値・レンジを<br>自動集計</div>
       </div>
       <div>
         <div class="feat-icon">🎛️</div>
-        <div style="font-weight:700;font-size:14px;color:var(--tx1);margin-bottom:5px">コンディション正規化</div>
-        <div style="font-size:12px;color:var(--tx3);line-height:1.7">各サイトの状態表記を<br>統一ラベルで表示</div>
+        <div data-i18n="feat.cond.title" style="font-weight:700;font-size:14px;color:var(--tx1);margin-bottom:5px">コンディション正規化</div>
+        <div data-i18n-html="feat.cond.desc" style="font-size:12px;color:var(--tx3);line-height:1.7">各サイトの状態表記を<br>統一ラベルで表示</div>
       </div>
       <div>
         <div class="feat-icon">📱</div>
-        <div style="font-weight:700;font-size:14px;color:var(--tx1);margin-bottom:5px">モバイル対応</div>
-        <div style="font-size:12px;color:var(--tx3);line-height:1.7">スマホ・タブレット・<br>PCで快適に利用</div>
+        <div data-i18n="feat.mobile.title" style="font-weight:700;font-size:14px;color:var(--tx1);margin-bottom:5px">モバイル対応</div>
+        <div data-i18n-html="feat.mobile.desc" style="font-size:12px;color:var(--tx3);line-height:1.7">スマホ・タブレット・<br>PCで快適に利用</div>
       </div>
     </div>
   </div>
@@ -440,7 +445,7 @@
 <!-- ══════════════ LOADING PAGE ══════════════ -->
 <div id="loading-page" style="display:none;min-height:calc(100vh - 56px);align-items:center;justify-content:center;flex-direction:column;gap:22px">
   <div class="spinner"></div>
-  <p style="color:var(--tx2);font-size:14px;font-weight:500" id="loading-query-label">各プラットフォームからデータを取得中...</p>
+  <p style="color:var(--tx2);font-size:14px;font-weight:500" id="loading-query-label" data-i18n="loading.label">各プラットフォームからデータを取得中...</p>
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 24px;box-shadow:var(--shadow-sm)">
     <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:var(--tx3)" id="loading-steps">
       <div id="ls-ebay">⟳ eBay Sold Listings を検索中...</div>
@@ -468,13 +473,14 @@
         <i class="fas fa-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--tx3);font-size:13px"></i>
         <input type="text" id="results-input" class="search-input"
           style="width:100%;padding:9px 12px 9px 36px;font-size:14px"
+          data-i18n-placeholder="results.placeholder"
           placeholder="別の機材を検索..."
           onkeydown="if(event.key==='Enter')doSearch()">
       </div>
-      <button class="btn-primary" style="padding:9px 18px;border-radius:10px;font-size:14px" onclick="doSearch()">検索</button>
+      <button id="results-search-btn" class="btn-primary" style="padding:9px 18px;border-radius:10px;font-size:14px" onclick="doSearch()"><span data-i18n="btn.search">検索</span></button>
       <span id="results-count-text" style="font-size:13px;color:var(--tx3);margin-left:auto;white-space:nowrap;font-weight:500"></span>
       <button onclick="toggleMobileFilter()" style="display:none;background:var(--surface2);border:1px solid var(--border-md);color:var(--tx2);padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer" id="mobile-filter-open-btn">
-        <i class="fas fa-filter" style="margin-right:4px"></i>フィルタ
+        <i class="fas fa-filter" style="margin-right:4px"></i><span data-i18n="filter.title">フィルタ</span>
       </button>
     </div>
   </div>
@@ -487,7 +493,7 @@
       <div class="card" style="padding:18px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <h3 style="font-size:13px;font-weight:700;color:var(--tx1);display:flex;align-items:center;gap:7px;margin:0">
-            <i class="fas fa-sliders-h" style="color:var(--accent)"></i> フィルタ
+            <i class="fas fa-sliders-h" style="color:var(--accent)"></i> <span data-i18n="filter.title">フィルタ</span>
           </h3>
           <button onclick="toggleMobileFilter()" id="mobile-filter-close" style="display:none;background:none;border:none;color:var(--tx3);font-size:18px;cursor:pointer">
             <i class="fas fa-times"></i>
@@ -496,44 +502,44 @@
 
         <!-- Platform -->
         <div style="margin-bottom:18px">
-          <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">プラットフォーム</div>
+          <div data-i18n="filter.platform" style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">プラットフォーム</div>
           <div id="pf-list" style="display:flex;flex-direction:column;gap:7px"></div>
         </div>
 
         <!-- Condition -->
         <div style="margin-bottom:18px">
-          <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">機材状態</div>
+          <div data-i18n="filter.condition" style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">機材状態</div>
           <div id="cond-list" style="display:flex;flex-direction:column;gap:7px"></div>
         </div>
 
         <!-- Status -->
         <div style="margin-bottom:18px">
-          <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">取引区分</div>
+          <div data-i18n="filter.status" style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">取引区分</div>
           <div id="stat-list" style="display:flex;flex-direction:column;gap:7px"></div>
         </div>
 
         <!-- Price -->
         <div style="margin-bottom:18px">
-          <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">価格帯（JPY）</div>
+          <div data-i18n="filter.price" style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">価格帯（JPY）</div>
           <div style="display:flex;align-items:center;gap:6px">
-            <input type="number" id="pmin" placeholder="下限" class="search-input" style="width:50%;padding:7px 10px;font-size:12px" oninput="applyFilters()">
+            <input type="number" id="pmin" data-i18n-placeholder="filter.price.min" placeholder="下限" class="search-input" style="width:50%;padding:7px 10px;font-size:12px" oninput="applyFilters()">
             <span style="color:var(--tx3);font-size:13px">〜</span>
-            <input type="number" id="pmax" placeholder="上限" class="search-input" style="width:50%;padding:7px 10px;font-size:12px" oninput="applyFilters()">
+            <input type="number" id="pmax" data-i18n-placeholder="filter.price.max" placeholder="上限" class="search-input" style="width:50%;padding:7px 10px;font-size:12px" oninput="applyFilters()">
           </div>
         </div>
 
         <!-- Date range -->
         <div style="margin-bottom:20px">
-          <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">期間</div>
+          <div data-i18n="filter.period" style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">期間</div>
           <div style="display:flex;flex-direction:column;gap:5px">
-            <button class="date-btn" id="dbtn-30" onclick="setDateRange(30)">直近30日</button>
-            <button class="date-btn" id="dbtn-90" onclick="setDateRange(90)">直近90日</button>
-            <button class="date-btn active" id="dbtn-0" onclick="setDateRange(0)">全期間</button>
+            <button class="date-btn" id="dbtn-30" data-i18n="filter.days30" onclick="setDateRange(30)">直近30日</button>
+            <button class="date-btn" id="dbtn-90" data-i18n="filter.days90" onclick="setDateRange(90)">直近90日</button>
+            <button class="date-btn active" id="dbtn-0" data-i18n="filter.all" onclick="setDateRange(0)">全期間</button>
           </div>
         </div>
 
         <button onclick="resetFilters()" style="width:100%;padding:8px;font-size:13px;color:var(--tx3);background:none;border:none;cursor:pointer">
-          <i class="fas fa-undo" style="margin-right:6px;font-size:11px"></i>リセット
+          <i class="fas fa-undo" style="margin-right:6px;font-size:11px"></i><span data-i18n="filter.reset">リセット</span>
         </button>
       </div>
     </aside>
@@ -549,15 +555,15 @@
 
       <!-- Sort bar -->
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-        <span style="font-size:13px;color:var(--tx2);font-weight:500">並び順：</span>
+        <span data-i18n="sort.label" style="font-size:13px;color:var(--tx2);font-weight:500">並び順：</span>
         <select id="sort-sel" class="search-input" style="padding:7px 12px;font-size:13px;border-radius:8px" onchange="applySortAndRender()">
-          <option value="date-desc">新しい順</option>
-          <option value="date-asc">古い順</option>
-          <option value="price-asc">価格：安い順</option>
-          <option value="price-desc">価格：高い順</option>
+          <option value="date-desc" data-i18n="sort.date-desc">新しい順</option>
+          <option value="date-asc" data-i18n="sort.date-asc">古い順</option>
+          <option value="price-asc" data-i18n="sort.price-asc">価格：安い順</option>
+          <option value="price-desc" data-i18n="sort.price-desc">価格：高い順</option>
         </select>
         <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
-          <span style="font-size:12px;color:var(--tx3);font-weight:500">通貨：</span>
+          <span data-i18n="currency.label" style="font-size:12px;color:var(--tx3);font-weight:500">通貨：</span>
           <div style="display:flex;border:1px solid var(--border-md);border-radius:8px;overflow:hidden">
             <button id="cur-jpy" onclick="setCurrency('JPY')"
               style="padding:6px 14px;font-size:12px;font-weight:700;border:none;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.15s">
@@ -577,12 +583,12 @@
         <table style="width:100%;border-collapse:collapse">
           <thead>
             <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
-              <th style="padding:11px 16px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;text-align:left">プラットフォーム</th>
-              <th style="padding:11px 16px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;text-align:left">商品名</th>
-              <th style="padding:11px 16px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;text-align:right" id="price-col-header">価格（JPY）</th>
-              <th class="col-hidden-md" style="padding:11px 16px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;text-align:center">状態</th>
-              <th class="col-hidden-md" style="padding:11px 16px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;text-align:center">取引日</th>
-              <th class="col-hidden-lg" style="padding:11px 16px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;text-align:center">区分</th>
+              <th data-i18n="th.platform" style="padding:11px 16px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;text-align:left">プラットフォーム</th>
+              <th data-i18n="th.title" style="padding:11px 16px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;text-align:left">商品名</th>
+              <th data-i18n="th.price.jpy" style="padding:11px 16px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;text-align:right" id="price-col-header">価格（JPY）</th>
+              <th data-i18n="th.condition" class="col-hidden-md" style="padding:11px 16px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;text-align:center">状態</th>
+              <th data-i18n="th.date" class="col-hidden-md" style="padding:11px 16px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;text-align:center">取引日</th>
+              <th data-i18n="th.status" class="col-hidden-lg" style="padding:11px 16px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;text-align:center">区分</th>
               <th style="padding:11px 16px;width:40px"></th>
             </tr>
           </thead>
@@ -592,9 +598,9 @@
         <!-- Empty state -->
         <div id="empty-state" style="display:none;padding:64px 20px;text-align:center">
           <div style="font-size:42px;margin-bottom:14px">🔇</div>
-          <p style="color:var(--tx2);font-size:15px;font-weight:600">該当する結果が見つかりませんでした</p>
-          <p style="color:var(--tx3);font-size:13px;margin-top:6px">フィルタを変更するか、別のキーワードで検索してください</p>
-          <button class="btn-ghost" style="margin-top:16px;padding:8px 20px;font-size:13px" onclick="resetFilters()">フィルタをリセット</button>
+          <p data-i18n="empty.title" style="color:var(--tx2);font-size:15px;font-weight:600">該当する結果が見つかりませんでした</p>
+          <p data-i18n="empty.desc" style="color:var(--tx3);font-size:13px;margin-top:6px">フィルタを変更するか、別のキーワードで検索してください</p>
+          <button data-i18n="empty.reset" class="btn-ghost" style="margin-top:16px;padding:8px 20px;font-size:13px" onclick="resetFilters()">フィルタをリセット</button>
         </div>
       </div>
 
@@ -617,20 +623,20 @@
     <h2 id="modal-title" style="font-size:15px;font-weight:700;color:var(--tx1);line-height:1.55;margin:0 0 20px"></h2>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
       <div class="card-muted" style="padding:14px">
-        <div style="font-size:11px;color:var(--tx3);margin-bottom:5px;font-weight:500">価格</div>
+        <div data-i18n="modal.price" style="font-size:11px;color:var(--tx3);margin-bottom:5px;font-weight:500">価格</div>
         <div id="modal-price" style="font-size:22px;font-weight:800;color:var(--tx1)"></div>
         <div id="modal-price2" style="font-size:11px;color:var(--tx3);margin-top:3px"></div>
       </div>
       <div class="card-muted" style="padding:14px">
-        <div style="font-size:11px;color:var(--tx3);margin-bottom:5px;font-weight:500">機材状態</div>
+        <div data-i18n="modal.condition" style="font-size:11px;color:var(--tx3);margin-bottom:5px;font-weight:500">機材状態</div>
         <div id="modal-cond" style="font-size:15px;font-weight:700;margin-top:3px"></div>
       </div>
       <div class="card-muted" style="padding:14px">
-        <div style="font-size:11px;color:var(--tx3);margin-bottom:5px;font-weight:500">取引日</div>
+        <div data-i18n="modal.date" style="font-size:11px;color:var(--tx3);margin-bottom:5px;font-weight:500">取引日</div>
         <div id="modal-date" style="font-size:14px;font-weight:500;color:var(--tx1)"></div>
       </div>
       <div class="card-muted" style="padding:14px">
-        <div style="font-size:11px;color:var(--tx3);margin-bottom:5px;font-weight:500">取引区分</div>
+        <div data-i18n="modal.status.label" style="font-size:11px;color:var(--tx3);margin-bottom:5px;font-weight:500">取引区分</div>
         <div id="modal-status" style="font-size:14px;font-weight:600"></div>
       </div>
     </div>
@@ -638,9 +644,9 @@
       class="btn-primary"
       style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:12px;font-size:14px;text-decoration:none;font-weight:700">
       <i class="fas fa-external-link-alt"></i>
-      元サイトで確認する
+      <span data-i18n="modal.link">元サイトで確認する</span>
     </a>
-    <p style="font-size:11px;color:var(--tx3);text-align:center;margin-top:9px">別タブで元の商品ページを開きます</p>
+    <p data-i18n="modal.link.hint" style="font-size:11px;color:var(--tx3);text-align:center;margin-top:9px">別タブで元の商品ページを開きます</p>
   </div>
 </div>
 
@@ -680,6 +686,51 @@ const SC = {
 // ═══════════════════════════════════════════
 // MOCK DATA
 // ═══════════════════════════════════════════
+
+// ═══════════════════════════════════════════
+// EXTERNAL LINK HELPERS
+// ═══════════════════════════════════════════
+
+const SEARCH_URL_BUILDERS = {
+  "eBay":               (q) => `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&LH_Sold=1`,
+  "Reverb":             (q) => `https://reverb.com/marketplace?query=${encodeURIComponent(q)}`,
+  "メルカリ":           (q) => `https://jp.mercari.com/search?keyword=${encodeURIComponent(q)}`,
+  "ヤフオク":           (q) => `https://auctions.yahoo.co.jp/search/search?p=${encodeURIComponent(q)}`,
+  "Rock oN":            (q) => `https://store.rock-on.jp/?s=${encodeURIComponent(q)}`,
+  "Vintage King":       (q) => `https://vintageking.com/catalogsearch/result/?q=${encodeURIComponent(q)}`,
+  "サウンドハウス":     (q) => `https://www.soundhouse.co.jp/search/index/?Keyword=${encodeURIComponent(q)}`,
+  "HARD OFF":           (q) => `https://www.hardoff.co.jp/search/?q=${encodeURIComponent(q)}`,
+  "Amazon":             (q) => `https://www.amazon.co.jp/s?k=${encodeURIComponent(q)}`,
+  "えちごやミュージック": (q) => `https://www.echigoyamusic.com/?s=${encodeURIComponent(q)}`,
+  "Five G":             (q) => `https://fiveg.net/?s=${encodeURIComponent(q)}`,
+};
+
+// ホームページURLかどうか判定（パスが空 or "/" のみ）
+function isHomepageUrl(url) {
+  if(!url || url === "#") return true;
+  try {
+    const u = new URL(url);
+    return u.pathname === "/" || u.pathname === "";
+  } catch { return true; }
+}
+
+// プラットフォームと検索キーワードから検索結果URLを生成
+function buildSearchUrl(platform, keyword) {
+  const builder = SEARCH_URL_BUILDERS[platform];
+  if(builder) return builder(keyword);
+  // 未知のプラットフォームは Google 検索にフォールバック
+  return `https://www.google.com/search?q=${encodeURIComponent(platform + " " + keyword)}`;
+}
+
+// 行の外部リンクボタン用（インライン onclick の代替）
+function openExternal(idx) {
+  const r = S.sorted[idx];
+  if(!r) return;
+  const url = isHomepageUrl(r.url)
+    ? buildSearchUrl(r.platform, r.title)
+    : r.url;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
 
 function ago(days) {
   const d = new Date();
@@ -799,45 +850,39 @@ const DB = {
 const TRENDS = {
   "neve 1073": {
     monthly: [54, 58, 61, 55, 63, 68, 65, 74, 79, 72, 81, 88],
-    direction: "上昇中",
-    change3m: "+22%",
-    peak: "2月・9月",
+    direction: "上昇中", change3m: "+22%", peak: "2月・9月",
     summary: "直近3ヶ月で前期比22%増。北米・欧州を中心にビンテージスタジオ機材の人気が再燃しており、オークション落札価格も上昇傾向にあります。",
+    summary_en: "Up 22% vs. the prior 3-month period. Vintage studio gear demand is surging in North America and Europe, with auction prices trending upward.",
   },
   "neumann u87": {
     monthly: [82, 80, 85, 83, 81, 88, 84, 86, 83, 85, 82, 84],
-    direction: "横ばい",
-    change3m: "+2%",
-    peak: "通年安定",
+    direction: "横ばい", change3m: "+2%", peak: "通年安定",
     summary: "直近3ヶ月は前期比+2%とほぼ横ばい。コンデンサーマイクの定番として世界的に安定した需要を維持。価格も比較的安定しています。",
+    summary_en: "Nearly flat at +2% vs. the prior period. The U87 maintains globally stable demand as the go-to condenser mic, with prices holding steady.",
   },
   "ua 1176": {
     monthly: [70, 74, 68, 72, 76, 73, 71, 77, 75, 74, 78, 80],
-    direction: "上昇中",
-    change3m: "+8%",
-    peak: "夏〜秋",
+    direction: "上昇中", change3m: "+8%", peak: "夏〜秋",
     summary: "直近3ヶ月で前期比8%増。ホームスタジオ需要の拡大とポッドキャスト市場の成長が追い風となり、じわじわと検索数が増加しています。",
+    summary_en: "Up 8% vs. the prior period. Home studio growth and the expanding podcast market are driving steady gains in search interest.",
   },
   "ssl g-bus": {
     monthly: [62, 65, 60, 58, 55, 52, 54, 50, 48, 51, 47, 46],
-    direction: "下降",
-    change3m: "-10%",
-    peak: "昨年初頭",
+    direction: "下降", change3m: "-10%", peak: "昨年初頭",
     summary: "直近3ヶ月で前期比10%減。ソフトウェアシミュレーション（SSL Native）の普及が影響し、ハードウェア実機への検索需要がゆるやかに低下中。",
+    summary_en: "Down 10% vs. the prior period. The rise of SSL Native software simulation is gradually reducing hardware search demand.",
   },
   "api 2500": {
     monthly: [48, 51, 53, 55, 52, 57, 60, 63, 58, 62, 65, 68],
-    direction: "上昇中",
-    change3m: "+14%",
-    peak: "直近3ヶ月",
+    direction: "上昇中", change3m: "+14%", peak: "直近3ヶ月",
     summary: "直近3ヶ月で前期比14%増。プロミックスエンジニアへの普及が進み、国内でも中古市場が活発化。特にアジア圏での需要増が顕著です。",
+    summary_en: "Up 14% vs. the prior period. Growing adoption among professional mix engineers, with notably increased demand across Asia.",
   },
   "eventide h3000": {
     monthly: [35, 38, 42, 40, 44, 48, 45, 50, 52, 49, 54, 57],
-    direction: "上昇中",
-    change3m: "+16%",
-    peak: "直近3ヶ月",
+    direction: "上昇中", change3m: "+16%", peak: "直近3ヶ月",
     summary: "直近3ヶ月で前期比16%増。ヴィンテージエフェクター人気を背景に検索数が急伸。特に海外DNBや実験音楽コミュニティでの言及増が顕著です。",
+    summary_en: "Up 16% vs. the prior period. Surging interest fueled by vintage effects nostalgia, especially in D&B and experimental music communities.",
   },
 };
 
@@ -863,9 +908,10 @@ function sparklineSVG(data, color, w=220, h=52) {
 
   // month labels (last 12)
   const now = new Date();
+  const loc = (typeof LANG !== 'undefined' && LANG === 'en') ? 'en-US' : 'ja-JP';
   const months = Array.from({length:12},(_,i)=>{
     const d = new Date(now.getFullYear(), now.getMonth()-11+i, 1);
-    return d.toLocaleDateString("ja-JP",{month:"short"}).replace("月","");
+    return d.toLocaleDateString(loc,{month:"short"}).replace("月","");
   });
   const labelStep = 3;
   const labels = pts
@@ -898,29 +944,31 @@ function renderTrend(query) {
   );
   if(!key){ card.style.display="none"; return; }
 
-  const t = TRENDS[key];
+  const entry = TRENDS[key]; // renamed from `t` to avoid shadowing the global t() i18n function
 
   const dirCfg = {
     "上昇中": { color:"#15803d", bg:"#dcfce7", icon:"📈", arrowColor:"#16a34a" },
     "横ばい": { color:"#92400e", bg:"#fef3c7", icon:"➡️",  arrowColor:"#d97706" },
     "下降":   { color:"#991b1b", bg:"#fee2e2", icon:"📉", arrowColor:"#dc2626" },
-  }[t.direction] || { color:"#555", bg:"#f3f4f6", icon:"—", arrowColor:"#888" };
+  }[entry.direction] || { color:"#555", bg:"#f3f4f6", icon:"—", arrowColor:"#888" };
+  const dirLabel = t('trend.' + (entry.direction==="上昇中"?"rising":entry.direction==="横ばい"?"stable":"falling"));
 
   const sparkColor = dirCfg.arrowColor;
 
   // Build month axis labels (4点だけ表示)
   const now = new Date();
+  const locale = LANG === 'en' ? 'en-US' : 'ja-JP';
   const monthLabels = Array.from({length:12},(_,i)=>{
     const d = new Date(now.getFullYear(), now.getMonth()-11+i, 1);
-    return d.toLocaleDateString("ja-JP",{month:"short"});
+    return d.toLocaleDateString(locale, {month:"short"});
   });
   const axisLabels = [0,3,6,9,11].map(i=>
     `<span style="position:absolute;left:${(i/11*100).toFixed(1)}%;transform:translateX(-50%);font-size:9px;color:var(--tx3);white-space:nowrap">${monthLabels[i]}</span>`
   ).join("");
 
   // 3-month mini bars
-  const last3  = t.monthly.slice(-3);
-  const barMax = Math.max(...t.monthly);
+  const last3  = entry.monthly.slice(-3);
+  const barMax = Math.max(...entry.monthly);
   const miniBar3 = last3.map((v,i)=>{
     const mLabel = monthLabels[9+i];
     const pct = Math.round(v/barMax*100);
@@ -940,15 +988,15 @@ function renderTrend(query) {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
         <div style="display:flex;align-items:center;gap:8px">
           <img src="https://www.google.com/favicon.ico" width="14" height="14" style="opacity:0.6;border-radius:2px" onerror="this.style.display='none'">
-          <span style="font-size:12px;font-weight:700;color:var(--tx2);letter-spacing:0.02em">Google トレンド</span>
-          <span style="font-size:11px;color:var(--tx3)">グローバル・過去12ヶ月</span>
+          <span style="font-size:12px;font-weight:700;color:var(--tx2);letter-spacing:0.02em">${t('trend.title')}</span>
+          <span style="font-size:11px;color:var(--tx3)">${t('trend.subtitle')}</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:11px;color:var(--tx3)">直近3ヶ月</span>
+          <span style="font-size:11px;color:var(--tx3)">${t('trend.recent3m')}</span>
           <span class="badge" style="background:${dirCfg.bg};color:${dirCfg.color};font-size:13px;padding:4px 12px;font-weight:700">
-            ${t.direction} ${t.direction==="上昇中"?"📈":t.direction==="下降"?"📉":"➡️"}
+            ${dirLabel} ${entry.direction==="上昇中"?"📈":entry.direction==="下降"?"📉":"➡️"}
           </span>
-          <span style="font-size:15px;font-weight:800;color:${dirCfg.color}">${t.change3m}</span>
+          <span style="font-size:15px;font-weight:800;color:${dirCfg.color}">${entry.change3m}</span>
         </div>
       </div>
 
@@ -957,9 +1005,9 @@ function renderTrend(query) {
 
         <!-- Sparkline (12ヶ月推移) -->
         <div>
-          <div style="font-size:10px;color:var(--tx3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">検索インタレスト推移（12ヶ月）</div>
+          <div style="font-size:10px;color:var(--tx3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">${t('trend.sparkline.lbl')}</div>
           <div style="position:relative">
-            ${sparklineSVG(t.monthly, sparkColor, 240, 56)}
+            ${sparklineSVG(entry.monthly, sparkColor, 240, 56)}
             <div style="position:relative;height:14px;margin-top:2px">${axisLabels}</div>
           </div>
         </div>
@@ -969,7 +1017,7 @@ function renderTrend(query) {
 
         <!-- 直近3ヶ月バー -->
         <div>
-          <div style="font-size:10px;color:var(--tx3);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">直近3ヶ月</div>
+          <div style="font-size:10px;color:var(--tx3);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">${t('trend.recent3m')}</div>
           <div style="display:flex;gap:6px;align-items:flex-end">
             ${miniBar3}
           </div>
@@ -979,12 +1027,12 @@ function renderTrend(query) {
       <!-- Summary -->
       <div style="margin-top:14px;padding:10px 14px;background:var(--surface2);border-radius:8px;border-left:3px solid ${sparkColor}">
         <span style="font-size:12px;color:var(--tx2);line-height:1.7">
-          <strong style="color:${dirCfg.color}">3ヶ月サマリー：</strong>${t.summary}
+          <strong style="color:${dirCfg.color}">${t('trend.summary.pfx')}</strong>${LANG==='en'&&entry.summary_en ? entry.summary_en : entry.summary}
         </span>
       </div>
 
       <div style="margin-top:8px;font-size:10px;color:var(--tx3);text-align:right">
-        ※ デモデータです。実際のGoogle Trends APIとの接続は本番環境で実装
+        ${t('trend.demo')}
       </div>
     </div>`;
 }
@@ -993,20 +1041,24 @@ function genFallback(q) {
   const platforms = Object.keys(PC);
   const conds     = ["新品同様","良好","良好","普通","普通","ジャンク"];
   const stats     = ["sold","sold","sold","listing","ended"];
+  const titlesJA  = ["中古品 動作確認済","スタジオ使用品 良品","ほぼ新品 付属品完備","業者出品 整備済み","個人出品"];
+  const titlesEN  = ["Used, Tested & Working","Studio-Used, Good Condition","Near Mint, Complete Set","Dealer Item, Serviced","Private Sale"];
+  const titles = LANG === 'en' ? titlesEN : titlesJA;
   return Array.from({length:14},(_,i) => {
     const pl = platforms[i % platforms.length];
     const isJPY = ["メルカリ","ヤフオク","Rock oN","サウンドハウス","HARD OFF","Amazon","えちごやミュージック","Five G"].includes(pl);
     const baseJPY = (Math.floor(Math.random()*600)+150)*1000;
+    const title = `${q} ${titles[i%5]}`;
     return {
       platform: pl,
-      title: `${q} ${["中古品 動作確認済","スタジオ使用品 良品","ほぼ新品 付属品完備","業者出品 整備済み","個人出品"][i%5]}`,
+      title,
       price: isJPY ? null : Math.round(baseJPY/150),
       currency: isJPY ? "JPY" : "USD",
       priceJPY: baseJPY,
       condition: conds[i%6],
       date: ago(Math.floor(Math.random()*90)),
       status: stats[i%5],
-      url: "#",
+      url: buildSearchUrl(pl, q),
     };
   });
 }
@@ -1016,6 +1068,225 @@ function genFallback(q) {
 // ═══════════════════════════════════════════
 
 const USD_RATE = 150; // ¥/$ 参考レート
+
+// ═══════════════════════════════════════════
+// i18n
+// ═══════════════════════════════════════════
+let LANG = 'ja';
+
+const I18N = {
+  ja: {
+    "site.tagline":         "中古機材リサーチャー",
+    "hero.platforms":       "11プラットフォームを横断検索",
+    "hero.h1.line1":        "中古ハードの相場を、",
+    "hero.h1.line2":        "瞬間ディグ。",
+    "hero.desc":            "eBay・Reverb・メルカリ・ヤフオク・Amazon・HARD OFF・Five G等、<br class=\"col-hidden-md\">国内外11プラットフォームの売買実績を横断検索。<br class=\"col-hidden-md\">適正価格の判断をサポートします。",
+    "hero.search.placeholder": "例：Neve 1073、Neumann U87、SSL G-Bus...",
+    "hero.trending":        "よく検索：",
+    "hero.history.label":   "最近の検索",
+    "hero.history.clear":   "クリア",
+    "btn.search":           "検索",
+    "feat.cross.title":     "横断検索",
+    "feat.cross.desc":      "11プラットフォームを<br>一括比較",
+    "feat.stats.title":     "価格統計",
+    "feat.stats.desc":      "平均・中央値・レンジを<br>自動集計",
+    "feat.cond.title":      "コンディション正規化",
+    "feat.cond.desc":       "各サイトの状態表記を<br>統一ラベルで表示",
+    "feat.mobile.title":    "モバイル対応",
+    "feat.mobile.desc":     "スマホ・タブレット・<br>PCで快適に利用",
+    "loading.label":        "各プラットフォームからデータを取得中...",
+    "loading.fetching":     (q) => `「${q}」を各プラットフォームで検索中...`,
+    "loading.step.search":  "⟳ を検索中...",
+    "loading.step.done":    "✓ を取得しました",
+    "results.placeholder":  "別の機材を検索...",
+    "filter.title":         "フィルタ",
+    "filter.platform":      "プラットフォーム",
+    "filter.condition":     "機材状態",
+    "filter.status":        "取引区分",
+    "filter.price":         "価格帯（JPY）",
+    "filter.price.min":     "下限",
+    "filter.price.max":     "上限",
+    "filter.period":        "期間",
+    "filter.days30":        "直近30日",
+    "filter.days90":        "直近90日",
+    "filter.all":           "全期間",
+    "filter.reset":         "リセット",
+    "sort.label":           "並び順：",
+    "sort.date-desc":       "新しい順",
+    "sort.date-asc":        "古い順",
+    "sort.price-asc":       "価格：安い順",
+    "sort.price-desc":      "価格：高い順",
+    "currency.label":       "通貨：",
+    "th.platform":          "プラットフォーム",
+    "th.title":             "商品名",
+    "th.price.jpy":         "価格（JPY）",
+    "th.price.usd":         "価格（USD）",
+    "th.condition":         "状態",
+    "th.date":              "取引日",
+    "th.status":            "区分",
+    "empty.title":          "該当する結果が見つかりませんでした",
+    "empty.desc":           "フィルタを変更するか、別のキーワードで検索してください",
+    "empty.reset":          "フィルタをリセット",
+    "modal.price":          "価格",
+    "modal.condition":      "機材状態",
+    "modal.date":           "取引日",
+    "modal.status.label":   "取引区分",
+    "modal.link":           "元サイトで確認する",
+    "modal.link.hint":      "別タブで元の商品ページを開きます",
+    "modal.price.ref":      (rate) => `参考・¥${rate}/USD`,
+    "stat.min":             "最低価格",
+    "stat.max":             "最高価格",
+    "stat.avg":             "平均価格",
+    "stat.median":          "中央値",
+    "stat.count":           "件数",
+    "stat.sold.suffix":     "売",
+    "results.count":        (q,n) => `「${q}」: ${n}件`,
+    "page.info":            (s,e,t) => `${s}–${e} / ${t}件`,
+    "trend.title":          "Google トレンド",
+    "trend.subtitle":       "グローバル・過去12ヶ月",
+    "trend.recent3m":       "直近3ヶ月",
+    "trend.sparkline.lbl":  "検索インタレスト推移（12ヶ月）",
+    "trend.summary.pfx":    "3ヶ月サマリー：",
+    "trend.demo":           "※ デモデータです。実際のGoogle Trends APIとの接続は本番環境で実装",
+    "cond.新品同様":        "新品同様",
+    "cond.良好":            "良好",
+    "cond.普通":            "普通",
+    "cond.ジャンク":        "ジャンク",
+    "status.sold":          "売却済",
+    "status.listing":       "出品中",
+    "status.ended":         "終了",
+    "trend.rising":         "上昇中",
+    "trend.stable":         "横ばい",
+    "trend.falling":        "下降",
+  },
+  en: {
+    "site.tagline":         "Used Gear Price Research",
+    "hero.platforms":       "Cross-search 11 platforms",
+    "hero.h1.line1":        "Used gear prices,",
+    "hero.h1.line2":        "found in a flash.",
+    "hero.desc":            "Instantly compare sold listings &amp; active deals across eBay, Reverb, Mercari, Yahoo Auctions, Amazon, HARD OFF, Five G and more — 11 platforms worldwide.",
+    "hero.search.placeholder": "e.g. Neve 1073, Neumann U87, SSL G-Bus...",
+    "hero.trending":        "Popular:",
+    "hero.history.label":   "Recent searches",
+    "hero.history.clear":   "Clear",
+    "btn.search":           "Search",
+    "feat.cross.title":     "Cross-Search",
+    "feat.cross.desc":      "Compare 11 platforms<br>at once",
+    "feat.stats.title":     "Price Stats",
+    "feat.stats.desc":      "Auto-calculates avg,<br>median &amp; range",
+    "feat.cond.title":      "Condition Normalization",
+    "feat.cond.desc":       "Unified condition labels<br>across all sites",
+    "feat.mobile.title":    "Mobile Ready",
+    "feat.mobile.desc":     "Works great on phone,<br>tablet &amp; desktop",
+    "loading.label":        "Fetching data from all platforms...",
+    "loading.fetching":     (q) => `Searching all platforms for "${q}"...`,
+    "results.placeholder":  "Search another item...",
+    "filter.title":         "Filters",
+    "filter.platform":      "Platform",
+    "filter.condition":     "Condition",
+    "filter.status":        "Status",
+    "filter.price":         "Price Range (JPY)",
+    "filter.price.min":     "Min",
+    "filter.price.max":     "Max",
+    "filter.period":        "Period",
+    "filter.days30":        "Last 30 days",
+    "filter.days90":        "Last 90 days",
+    "filter.all":           "All time",
+    "filter.reset":         "Reset",
+    "sort.label":           "Sort:",
+    "sort.date-desc":       "Newest first",
+    "sort.date-asc":        "Oldest first",
+    "sort.price-asc":       "Price: Low to High",
+    "sort.price-desc":      "Price: High to Low",
+    "currency.label":       "Currency:",
+    "th.platform":          "Platform",
+    "th.title":             "Item",
+    "th.price.jpy":         "Price (JPY)",
+    "th.price.usd":         "Price (USD)",
+    "th.condition":         "Condition",
+    "th.date":              "Date",
+    "th.status":            "Status",
+    "empty.title":          "No results found",
+    "empty.desc":           "Try adjusting the filters or use a different keyword",
+    "empty.reset":          "Reset Filters",
+    "modal.price":          "Price",
+    "modal.condition":      "Condition",
+    "modal.date":           "Date",
+    "modal.status.label":   "Status",
+    "modal.link":           "View on source site",
+    "modal.link.hint":      "Opens the original listing in a new tab",
+    "modal.price.ref":      (rate) => `ref. ¥${rate}/USD`,
+    "stat.min":             "Lowest",
+    "stat.max":             "Highest",
+    "stat.avg":             "Average",
+    "stat.median":          "Median",
+    "stat.count":           "Listings",
+    "stat.sold.suffix":     "sold",
+    "results.count":        (q,n) => `"${q}": ${n} results`,
+    "page.info":            (s,e,tt) => `${s}–${e} of ${tt}`,
+    "trend.title":          "Google Trends",
+    "trend.subtitle":       "Global · Last 12 months",
+    "trend.recent3m":       "Last 3 months",
+    "trend.sparkline.lbl":  "Search Interest (12 months)",
+    "trend.summary.pfx":    "3-Month Summary: ",
+    "trend.demo":           "* Demo data. Live Google Trends API integration in production.",
+    "cond.新品同様":        "Like New",
+    "cond.良好":            "Good",
+    "cond.普通":            "Fair",
+    "cond.ジャンク":        "Junk",
+    "status.sold":          "Sold",
+    "status.listing":       "Active",
+    "status.ended":         "Ended",
+    "trend.rising":         "Rising",
+    "trend.stable":         "Stable",
+    "trend.falling":        "Declining",
+  }
+};
+
+function t(key, ...args) {
+  const dict = I18N[LANG] || I18N.ja;
+  const val = dict[key] ?? I18N.ja[key] ?? key;
+  return typeof val === 'function' ? val(...args) : val;
+}
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    el.innerHTML = t(el.getAttribute('data-i18n-html'));
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+  });
+  // hero desc (has <br> tags)
+  const heroDesc = document.getElementById('hero-desc');
+  if(heroDesc) heroDesc.innerHTML = t('hero.desc');
+  // sort options
+  const sel = document.getElementById('sort-sel');
+  if(sel) [...sel.options].forEach(o => {
+    const k = 'sort.' + o.value;
+    if(I18N[LANG]?.[k] || I18N.ja[k]) o.text = t(k);
+  });
+  // lang buttons
+  const ja = document.getElementById('lang-ja-btn');
+  const en = document.getElementById('lang-en-btn');
+  if(ja) { ja.style.background = LANG==='ja' ? 'var(--accent)' : 'var(--surface2)'; ja.style.color = LANG==='ja' ? '#fff' : 'var(--tx2)'; }
+  if(en) { en.style.background = LANG==='en' ? 'var(--accent)' : 'var(--surface2)'; en.style.color = LANG==='en' ? '#fff' : 'var(--tx2)'; }
+  // update html lang attr
+  document.documentElement.lang = LANG === 'en' ? 'en' : 'ja';
+}
+
+function setLang(lang) {
+  LANG = lang;
+  try { localStorage.setItem('agpr_lang', lang); } catch {}
+  applyI18n();
+  // re-render dynamic content if on results page
+  if(document.getElementById('results-page').style.display !== 'none') {
+    buildFilters();
+    applyFilters();
+  }
+}
 
 let S = {
   query:"",
@@ -1082,12 +1353,22 @@ function doSearch() {
   animateLoading();
 
   setTimeout(() => {
-    const key = Object.keys(DB).find(k =>
-      q.toLowerCase().replace(/\s+/g," ").includes(k) ||
-      k.includes(q.toLowerCase().replace(/\s+/g," "))
-    );
+    // Normalize query: lowercase, full-width spaces → half-width, collapse whitespace
+    const nq = q.toLowerCase().replace(/　/g,' ').replace(/\s+/g,' ').trim();
+    const nqNS = nq.replace(/\s/g,''); // no-space variant for "neve1073" style queries
+    const key = Object.keys(DB).find(k => {
+      const kNS = k.replace(/\s/g,'');
+      return nq.includes(k) || k.includes(nq) || nqNS.includes(kNS) || kNS.includes(nqNS);
+    });
     const data = key ? [...DB[key]] : genFallback(q);
-    data.forEach((r,i)=>r.id=i);
+    // Preprocess prices so priceJPY is always a valid number
+    data.forEach((r,i) => {
+      r.id = i;
+      if(r.priceJPY == null) {
+        r.priceJPY = (r.currency === "USD" && r.price) ? Math.round(r.price * USD_RATE) : 0;
+      }
+      r.priceUSD = (r.currency === "USD" && r.price) ? r.price : Math.round(r.priceJPY / USD_RATE);
+    });
 
     S.all      = data;
     S.page     = 1;
@@ -1105,28 +1386,30 @@ function doSearch() {
 }
 
 function animateLoading() {
-  document.getElementById("loading-query-label").textContent = `「${S.query}」を各プラットフォームで検索中...`;
-  const steps = [
-    ["ls-ebay",     "✓ eBay Sold Listings を取得しました"],
-    ["ls-reverb",   "✓ Reverb.com を取得しました"],
-    ["ls-mercari",  "⟳ メルカリ を検索中..."],
-    ["ls-yahoo",    "⟳ ヤフオク！ を検索中..."],
-    ["ls-rockon",   "⟳ Rock oN Company を検索中..."],
-    ["ls-vk",       "⟳ Vintage King を検索中..."],
-    ["ls-sh",       "⟳ サウンドハウス を検索中..."],
-    ["ls-ho",       "⟳ HARD OFF を検索中..."],
-    ["ls-amazon",   "⟳ Amazon マーケットプレイスを検索中..."],
-    ["ls-echigoya", "⟳ えちごやミュージックを検索中..."],
-    ["ls-fiveg",    "⟳ Five G を検索中..."],
+  document.getElementById("loading-query-label").textContent = t('loading.fetching', S.query);
+  const platforms = [
+    ["ls-ebay",     "eBay Sold Listings"],
+    ["ls-reverb",   "Reverb.com"],
+    ["ls-mercari",  "メルカリ"],
+    ["ls-yahoo",    "ヤフオク！"],
+    ["ls-rockon",   "Rock oN Company"],
+    ["ls-vk",       "Vintage King"],
+    ["ls-sh",       "サウンドハウス"],
+    ["ls-ho",       "HARD OFF"],
+    ["ls-amazon",   LANG==='en' ? "Amazon Marketplace" : "Amazon マーケットプレイス"],
+    ["ls-echigoya", LANG==='en' ? "Echigoya Music" : "えちごやミュージック"],
+    ["ls-fiveg",    "Five G"],
   ];
-  steps.forEach(([id], i) => {
+  platforms.forEach(([id, name]) => {
     const el = document.getElementById(id);
-    if(el){ el.style.color=""; el.textContent="⟳ 検索中..."; }
+    if(el){ el.style.color=""; el.textContent=`⟳ ${name} ...`; }
   });
-  steps.forEach(([id, label], i) => {
+  platforms.forEach(([id, name], i) => {
     setTimeout(() => {
       const el = document.getElementById(id);
-      if(el){ el.textContent = label; el.style.color = label.startsWith("✓") ? "#15803d" : ""; }
+      if(!el) return;
+      if(i < 2) { el.textContent = `✓ ${name}`; el.style.color="#15803d"; }
+      else      { el.textContent = `⟳ ${name} ...`; el.style.color=""; }
     }, i * 140);
   });
 }
@@ -1150,17 +1433,19 @@ function buildFilters() {
 
   document.getElementById("cond-list").innerHTML = uC.map(c => {
     const cfg = CC[c]||{color:"#555"};
+    const condLabel = t('cond.'+c) || c;
     return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer">
       <input type="checkbox" class="f-check" checked onchange="toggleF('co','${c}')">
-      <span style="font-size:13px;font-weight:600;color:${cfg.color}">${c}</span>
+      <span style="font-size:13px;font-weight:600;color:${cfg.color}">${condLabel}</span>
     </label>`;
   }).join("");
 
   document.getElementById("stat-list").innerHTML = uS.map(s => {
     const cfg = SC[s]||{label:s,color:"#555"};
+    const statLabel = t('status.'+s) || cfg.label;
     return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer">
       <input type="checkbox" class="f-check" checked onchange="toggleF('st','${s}')">
-      <span style="font-size:13px;font-weight:600;color:${cfg.color}">${cfg.label}</span>
+      <span style="font-size:13px;font-weight:600;color:${cfg.color}">${statLabel}</span>
     </label>`;
   }).join("");
 
@@ -1203,16 +1488,19 @@ function setDateBtns(days) {
 }
 
 function applyFilters() {
-  const minP = parseFloat(document.getElementById("pmin").value)||null;
-  const maxP = parseFloat(document.getElementById("pmax").value)||null;
+  const _minP = parseFloat(document.getElementById("pmin").value);
+  const _maxP = parseFloat(document.getElementById("pmax").value);
+  const minP = Number.isFinite(_minP) ? _minP : null;
+  const maxP = Number.isFinite(_maxP) ? _maxP : null;
   const cutoff = S.dateRange>0 ? new Date(Date.now()-S.dateRange*86400000) : null;
 
   S.filtered = S.all.filter(r => {
     if(!S.platforms.has(r.platform)) return false;
     if(!S.conds.has(r.condition))    return false;
     if(!S.statuses.has(r.status))    return false;
-    if(minP!==null && r.priceJPY<minP) return false;
-    if(maxP!==null && r.priceJPY>maxP) return false;
+    const jpy = r.priceJPY || 0;
+    if(minP!==null && jpy<minP) return false;
+    if(maxP!==null && jpy>maxP) return false;
     if(cutoff && new Date(r.date)<cutoff) return false;
     return true;
   });
@@ -1226,7 +1514,7 @@ function setCurrency(cur) {
   const hdr  = document.getElementById("price-col-header");
   if(jBtn) { jBtn.style.background = cur==="JPY" ? "var(--accent)" : "var(--surface2)"; jBtn.style.color = cur==="JPY" ? "#fff" : "var(--tx2)"; }
   if(uBtn) { uBtn.style.background = cur==="USD" ? "var(--accent)" : "var(--surface2)"; uBtn.style.color = cur==="USD" ? "#fff" : "var(--tx2)"; }
-  if(hdr)    hdr.textContent = cur==="USD" ? "価格（USD）" : "価格（JPY）";
+  if(hdr)    hdr.textContent = cur==="USD" ? t('th.price.usd') : t('th.price.jpy');
   renderResults();
 }
 
@@ -1263,8 +1551,7 @@ function renderResults() {
   const end   = Math.min(start+S.perPage, total);
   const page  = S.sorted.slice(start, end);
 
-  document.getElementById("results-count-text").textContent =
-    `「${S.query}」: ${total}件`;
+  document.getElementById("results-count-text").textContent = t('results.count', S.query, total);
 
   renderStats(S.filtered);
   renderTrend(S.query);
@@ -1282,13 +1569,14 @@ function rowHTML(r, globalIdx) {
   const cc = CC[r.condition]||{color:"#555",bg:"#f3f4f6"};
   const sc = SC[r.status]||{label:r.status,color:"#555",bg:"#f3f4f6"};
 
-  const usdPrice = (r.currency==="USD" && r.price) ? r.price : Math.round((r.priceJPY||0)/USD_RATE);
+  const usdPrice = r.priceUSD ?? ((r.currency==="USD" && r.price) ? r.price : Math.round((r.priceJPY||0)/USD_RATE));
+  const jpyPrice = r.priceJPY || 0;
   let priceStr, priceSub;
   if(S.currency==="USD") {
     priceStr = `<span style="color:var(--tx1);font-weight:700;font-size:14px">$${usdPrice.toLocaleString()}</span>`;
-    priceSub = `<div style="font-size:11px;color:var(--tx3);margin-top:1px">≈¥${r.priceJPY?.toLocaleString()}</div>`;
+    priceSub = `<div style="font-size:11px;color:var(--tx3);margin-top:1px">≈¥${jpyPrice.toLocaleString()}</div>`;
   } else {
-    priceStr = `<span style="color:var(--tx1);font-weight:700;font-size:14px">¥${r.priceJPY?.toLocaleString()}</span>`;
+    priceStr = `<span style="color:var(--tx1);font-weight:700;font-size:14px">¥${jpyPrice.toLocaleString()}</span>`;
     priceSub = r.currency==="USD" ? `<div style="font-size:11px;color:var(--tx3);margin-top:1px">≈$${usdPrice.toLocaleString()}</div>` : "";
   }
 
@@ -1307,16 +1595,16 @@ function rowHTML(r, globalIdx) {
       ${priceStr}${priceSub}
     </td>
     <td class="col-hidden-md" style="padding:12px 14px;text-align:center">
-      <span class="badge" style="background:${cc.bg};color:${cc.color}">${r.condition}</span>
+      <span class="badge" style="background:${cc.bg};color:${cc.color}">${t('cond.'+r.condition)||r.condition}</span>
     </td>
     <td class="col-hidden-md" style="padding:12px 14px;text-align:center">
       <span style="font-size:12px;color:${dateColor};font-weight:500">${r.date?.replace(/-/g,"/")}</span>
     </td>
     <td class="col-hidden-lg" style="padding:12px 14px;text-align:center">
-      <span class="badge badge-sm" style="background:${sc.bg};color:${sc.color}">${sc.label}</span>
+      <span class="badge badge-sm" style="background:${sc.bg};color:${sc.color}">${t('status.'+r.status)||sc.label}</span>
     </td>
     <td style="padding:12px 10px;text-align:center">
-      <button onclick="event.stopPropagation();if('${r.url}'!=='#')window.open('${r.url}','_blank')"
+      <button onclick="event.stopPropagation();openExternal(${globalIdx})"
         style="background:none;border:none;color:var(--tx3);cursor:pointer;padding:5px 7px;border-radius:6px;transition:all 0.15s"
         onmouseover="this.style.color='var(--accent)';this.style.background='#dbeafe'"
         onmouseout="this.style.color='var(--tx3)';this.style.background='none'"
@@ -1344,12 +1632,15 @@ function renderStats(items) {
   const fmt = (jpy) => S.currency==="USD"
     ? `$${Math.round(jpy/USD_RATE).toLocaleString()}`
     : `¥${jpy.toLocaleString()}`;
+  const countVal = LANG==='en'
+    ? `${items.length} / ${soldN} ${t('stat.sold.suffix')}`
+    : `${items.length}件 / 売${soldN}`;
   const cards = [
-    { label:"最低価格", val:fmt(min),                          color:"#15803d", bg:"#dcfce7" },
-    { label:"最高価格", val:fmt(max),                          color:"#991b1b", bg:"#fee2e2" },
-    { label:"平均価格", val:fmt(avg),                          color:"#1d4ed8", bg:"#dbeafe" },
-    { label:"中央値",   val:fmt(mid),                          color:"#6d28d9", bg:"#ede9fe" },
-    { label:"件数",     val:`${items.length}件 / 売${soldN}`,  color:"#92400e", bg:"#fef3c7" },
+    { label:t('stat.min'),    val:fmt(min),   color:"#15803d", bg:"#dcfce7" },
+    { label:t('stat.max'),    val:fmt(max),   color:"#991b1b", bg:"#fee2e2" },
+    { label:t('stat.avg'),    val:fmt(avg),   color:"#1d4ed8", bg:"#dbeafe" },
+    { label:t('stat.median'), val:fmt(mid),   color:"#6d28d9", bg:"#ede9fe" },
+    { label:t('stat.count'),  val:countVal,   color:"#92400e", bg:"#fef3c7" },
   ];
 
   row.innerHTML = cards.map(c=>`
@@ -1362,7 +1653,7 @@ function renderStats(items) {
 function renderPagination(total, start, end) {
   const pages = Math.ceil(total/S.perPage);
   document.getElementById("page-info").textContent =
-    total>0 ? `${start+1}–${end} / ${total}件` : "";
+    total>0 ? t('page.info', start+1, end, total) : "";
 
   if(pages<=1){ document.getElementById("page-btns").innerHTML=""; return; }
 
@@ -1396,21 +1687,27 @@ function openModal(idx) {
 
   document.getElementById("modal-badges").innerHTML =
     `<span class="badge" style="background:${pc.bg};color:${pc.color};font-size:13px;padding:5px 12px">${pc.icon} ${r.platform}</span>
-     <span class="badge" style="background:${SC[r.status]?.bg||"#f3f4f6"};color:${sc.color};font-size:12px;padding:4px 10px">${sc.label}</span>`;
+     <span class="badge" style="background:${SC[r.status]?.bg||"#f3f4f6"};color:${sc.color};font-size:12px;padding:4px 10px">${t('status.'+r.status)||sc.label}</span>`;
 
   document.getElementById("modal-title").textContent = r.title;
 
-  const mUsd = (r.currency==="USD" && r.price) ? r.price : Math.round((r.priceJPY||0)/USD_RATE);
-  const priceStr = S.currency==="USD" ? `$${mUsd.toLocaleString()}` : `¥${r.priceJPY?.toLocaleString()}`;
+  const mUsd = r.priceUSD ?? ((r.currency==="USD" && r.price) ? r.price : Math.round((r.priceJPY||0)/USD_RATE));
+  const mJpy = r.priceJPY || 0;
+  const priceStr = S.currency==="USD" ? `$${mUsd.toLocaleString()}` : `¥${mJpy.toLocaleString()}`;
+  const refNote  = t('modal.price.ref', USD_RATE);
   const price2   = S.currency==="USD"
-    ? `≈ ¥${r.priceJPY?.toLocaleString()}（参考・¥${USD_RATE}/USD）`
-    : (r.currency==="USD" ? `≈ $${mUsd.toLocaleString()}（参考・¥${USD_RATE}/USD）` : "");
+    ? `≈ ¥${mJpy.toLocaleString()}（${refNote}）`
+    : (r.currency==="USD" ? `≈ $${mUsd.toLocaleString()}（${refNote}）` : "");
   document.getElementById("modal-price").textContent  = priceStr;
   document.getElementById("modal-price2").textContent = price2;
-  document.getElementById("modal-cond").innerHTML   = `<span style="color:${cc.color}">${r.condition}</span>`;
+  document.getElementById("modal-cond").innerHTML   = `<span style="color:${cc.color}">${t('cond.'+r.condition)||r.condition}</span>`;
   document.getElementById("modal-date").textContent = r.date?.replace(/-/g,"/")||"-";
-  document.getElementById("modal-status").innerHTML = `<span style="color:${sc.color}">${sc.label}</span>`;
-  document.getElementById("modal-link").href        = r.url;
+  document.getElementById("modal-status").innerHTML = `<span style="color:${sc.color}">${t('status.'+r.status)||sc.label}</span>`;
+  // Bug fix: ホームページURLや"#"の場合は検索結果URLを生成する
+  const modalUrl = isHomepageUrl(r.url)
+    ? buildSearchUrl(r.platform, r.title)
+    : r.url;
+  document.getElementById("modal-link").href = modalUrl;
 
   document.getElementById("modal-bg").style.display = "flex";
 }
@@ -1450,6 +1747,8 @@ function toggleMobileFilter() {
 document.addEventListener("keydown", e => { if(e.key==="Escape") closeModal(); });
 
 document.addEventListener("DOMContentLoaded", () => {
+  try { const saved = localStorage.getItem('agpr_lang'); if(saved) LANG = saved; } catch {}
+  applyI18n();
   renderHistory();
   showPage("search");
 });
