@@ -485,6 +485,7 @@
       </div>
       <button id="results-search-btn" class="btn-primary" style="padding:9px 18px;border-radius:10px;font-size:14px" onclick="doSearch()"><span data-i18n="btn.search">検索</span></button>
       <span id="results-count-text" style="font-size:13px;color:var(--tx3);margin-left:auto;white-space:nowrap;font-weight:500"></span>
+      <span id="source-badge" style="display:none;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;letter-spacing:0.03em"></span>
       <button onclick="toggleMobileFilter()" style="display:none;background:var(--surface2);border:1px solid var(--border-md);color:var(--tx2);padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer" id="mobile-filter-open-btn">
         <i class="fas fa-filter" style="margin-right:4px"></i><span data-i18n="filter.title">フィルタ</span>
       </button>
@@ -1170,6 +1171,8 @@ const I18N = {
     "trend.rising":         "上昇中",
     "trend.stable":         "横ばい",
     "trend.falling":        "下降",
+    "source.reverb_api":    "● LIVE: Reverb API",
+    "source.mock_db":       "● βデータ",
   },
   en: {
     "site.tagline":         "Used Gear Price Research",
@@ -1255,6 +1258,8 @@ const I18N = {
     "trend.rising":         "Rising",
     "trend.stable":         "Stable",
     "trend.falling":        "Declining",
+    "source.reverb_api":    "● LIVE: Reverb API",
+    "source.mock_db":       "● β Data",
   }
 };
 
@@ -1316,6 +1321,7 @@ let S = {
   statuses: new Set(),
   currency: "JPY", // "JPY" | "USD"
   noMatch: false,  // true when query didn't match any DB key
+  dataSource: 'none', // 'reverb_api' | 'mock_db' | 'no_match' | 'none'
 };
 
 // ═══════════════════════════════════════════
@@ -1356,7 +1362,17 @@ function quickSearch(q) {
   doSearch();
 }
 
-function doSearch() {
+// ── DB キー検索ヘルパー ────────────────────────────
+function findDBKey(q) {
+  const nq = q.toLowerCase().replace(/　/g,' ').replace(/\s+/g,' ').trim();
+  const nqNS = nq.replace(/\s/g,''); // no-space variant: "neve1073"
+  return Object.keys(DB).find(k => {
+    const kNS = k.replace(/\s/g,'');
+    return nq.includes(k) || k.includes(nq) || nqNS.includes(kNS) || kNS.includes(nqNS);
+  });
+}
+
+async function doSearch() {
   const isSearch = document.getElementById("search-page").style.display !== "none";
   const q = (isSearch
     ? document.getElementById("hero-input")
@@ -1368,67 +1384,106 @@ function doSearch() {
   showPage("loading");
   animateLoading();
 
-  setTimeout(() => {
-    // Normalize query: lowercase, full-width spaces → half-width, collapse whitespace
-    const nq = q.toLowerCase().replace(/　/g,' ').replace(/\s+/g,' ').trim();
-    const nqNS = nq.replace(/\s/g,''); // no-space variant for "neve1073" style queries
-    const key = Object.keys(DB).find(k => {
-      const kNS = k.replace(/\s/g,'');
-      return nq.includes(k) || k.includes(nq) || nqNS.includes(kNS) || kNS.includes(nqNS);
-    });
-    S.noMatch = !key; // true when query doesn't match any DB entry
-    const data = key ? [...DB[key]] : []; // no fake data for unrecognized queries
-    // Preprocess prices so priceJPY is always a valid number
-    data.forEach((r,i) => {
-      r.id = i;
-      if(r.priceJPY == null) {
-        r.priceJPY = (r.currency === "USD" && r.price) ? Math.round(r.price * USD_RATE) : 0;
-      }
-      r.priceUSD = (r.currency === "USD" && r.price) ? r.price : Math.round(r.priceJPY / USD_RATE);
-    });
+  // /api/search と最低待機時間を並列実行
+  const minDelayPromise = new Promise(r => setTimeout(r, 900));
+  const apiPromise = fetch(`/api/search?q=${encodeURIComponent(q)}`)
+    .then(r => r.json())
+    .catch(() => ({ source: 'error', listings: [] }));
 
-    S.all      = data;
-    S.page     = 1;
-    S.dateRange = 0;
-    S.platforms = new Set(data.map(r=>r.platform));
-    S.conds     = new Set(data.map(r=>r.condition));
-    S.statuses  = new Set(data.map(r=>r.status));
+  const [json] = await Promise.all([apiPromise, minDelayPromise]);
 
-    showPage("results");
-    document.getElementById("results-input").value = q;
-    buildFilters();
-    applyFilters();
-    setDateBtns(0);
-  }, 900 + Math.random()*600);
+  let data = [];
+  if (json.listings && json.listings.length > 0) {
+    // ✅ Reverb API から実データ取得成功
+    data = json.listings;
+    S.noMatch   = false;
+    S.dataSource = 'reverb_api';
+  } else {
+    // フォールバック: ローカルモックDB
+    const key = findDBKey(q);
+    if (key) {
+      data = [...DB[key]];
+      S.noMatch   = false;
+      S.dataSource = 'mock_db';
+    } else {
+      S.noMatch   = true;
+      S.dataSource = 'no_match';
+    }
+  }
+
+  // Preprocess prices so priceJPY is always a valid number
+  data.forEach((r, i) => {
+    r.id = i;
+    if (r.priceJPY == null) {
+      r.priceJPY = (r.currency === "USD" && r.price) ? Math.round(r.price * USD_RATE) : 0;
+    }
+    r.priceUSD = (r.currency === "USD" && r.price) ? r.price : Math.round(r.priceJPY / USD_RATE);
+  });
+
+  S.all      = data;
+  S.page     = 1;
+  S.dateRange = 0;
+  S.platforms = new Set(data.map(r => r.platform));
+  S.conds     = new Set(data.map(r => r.condition));
+  S.statuses  = new Set(data.map(r => r.status));
+
+  showPage("results");
+  document.getElementById("results-input").value = q;
+  buildFilters();
+  applyFilters();
+  setDateBtns(0);
+  renderSourceBadge();
 }
 
 function animateLoading() {
   document.getElementById("loading-query-label").textContent = t('loading.fetching', S.query);
+  // v0.3: Reverb は LIVE API (index 1)。それ以外は「準備中」表示
   const platforms = [
-    ["ls-ebay",     "eBay Sold Listings"],
-    ["ls-reverb",   "Reverb.com"],
-    ["ls-mercari",  "メルカリ"],
-    ["ls-yahoo",    "ヤフオク！"],
-    ["ls-rockon",   "Rock oN Company"],
-    ["ls-vk",       "Vintage King"],
-    ["ls-sh",       "サウンドハウス"],
-    ["ls-ho",       "HARD OFF"],
-    ["ls-amazon",   LANG==='en' ? "Amazon Marketplace" : "Amazon マーケットプレイス"],
-    ["ls-echigoya", LANG==='en' ? "Echigoya Music" : "えちごやミュージック"],
-    ["ls-fiveg",    "Five G"],
+    ["ls-ebay",     "eBay Sold Listings",                            false],
+    ["ls-reverb",   "Reverb.com",                                    true ],  // ← LIVE
+    ["ls-mercari",  "メルカリ",                                       false],
+    ["ls-yahoo",    "ヤフオク！",                                     false],
+    ["ls-rockon",   "Rock oN Company",                               false],
+    ["ls-vk",       "Vintage King",                                  false],
+    ["ls-sh",       "サウンドハウス",                                 false],
+    ["ls-ho",       "HARD OFF",                                      false],
+    ["ls-amazon",   LANG==='en' ? "Amazon Marketplace" : "Amazon マーケットプレイス", false],
+    ["ls-echigoya", LANG==='en' ? "Echigoya Music" : "えちごやミュージック",          false],
+    ["ls-fiveg",    "Five G",                                        false],
   ];
-  platforms.forEach(([id, name]) => {
+  platforms.forEach(([id, name, live]) => {
     const el = document.getElementById(id);
-    if(el){ el.style.color=""; el.textContent=`⟳ ${name} ...`; }
+    if(el) {
+      el.style.color = live ? "#2563eb" : "";
+      el.textContent = live ? `⟳ ${name} (取得中...)` : `– ${name}`;
+    }
   });
-  platforms.forEach(([id, name], i) => {
-    setTimeout(() => {
-      const el = document.getElementById(id);
-      if(!el) return;
-      if(i < 2) { el.textContent = `✓ ${name}`; el.style.color="#15803d"; }
-      else      { el.textContent = `⟳ ${name} ...`; el.style.color=""; }
-    }, i * 140);
-  });
+  // Reverb のみ「完了」アニメーション（取得完了まで回転維持）
+  setTimeout(() => {
+    const reverbEl = document.getElementById("ls-reverb");
+    if(reverbEl && reverbEl.textContent.startsWith("⟳")) {
+      reverbEl.textContent = `✓ Reverb.com`;
+      reverbEl.style.color = "#15803d";
+    }
+  }, 850);
+}
+
+function renderSourceBadge() {
+  const badge = document.getElementById("source-badge");
+  if (!badge) return;
+  if (S.dataSource === 'reverb_api') {
+    badge.textContent = t('source.reverb_api');
+    badge.style.display = "inline-block";
+    badge.style.background = "#dbeafe";
+    badge.style.color = "#1d4ed8";
+  } else if (S.dataSource === 'mock_db') {
+    badge.textContent = t('source.mock_db');
+    badge.style.display = "inline-block";
+    badge.style.background = "#fef3c7";
+    badge.style.color = "#92400e";
+  } else {
+    badge.style.display = "none";
+  }
 }
 
 // ═══════════════════════════════════════════
