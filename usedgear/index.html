@@ -1433,6 +1433,25 @@ async function doSearch() {
   applyFilters();
   setDateBtns(0);
   renderSourceBadge();
+
+  // 検索ログを非同期で記録（fire-and-forget：失敗してもUI に影響しない）
+  logSearch(q, data.length, S.dataSource);
+}
+
+// ── 検索ログ記録（Supabase / v0.3 Session C）──────────────────
+function logSearch(query, resultCount, dataSource) {
+  const platformsSearched = dataSource === 'reverb_api' ? ['reverb'] : [];
+  fetch('/api/log-search', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query,
+      resultCount,
+      dataSource,
+      lang: LANG,
+      platformsSearched,
+    }),
+  }).catch(() => { /* ログ失敗は無視 */ });
 }
 
 function animateLoading() {
