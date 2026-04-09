@@ -1,19 +1,23 @@
 // ============================================================
 // GearJaws — /api/search.js
-// Vercel Serverless Function  (Session A / v0.3)
+// Vercel Serverless Function  (Session A + D / v0.3〜v1.0)
 //
 // 役割: 各プラットフォームのAPIを呼び出し、
 //       共通スキーマに正規化して返す。
-// 現在対応: Reverb.com（公式API）
-// 将来対応: eBay(v1.0), ヤフオク(v1.5), etc.
+// 現在対応: Reverb.com（公式API）/ eBay Finding API（v1.0）
+// 将来対応: ヤフオク(v1.5), etc.
 // ============================================================
 
 // ── 定数 ─────────────────────────────────────────────────────
-const USD_RATE = 150; // 参考レート（v1.0でOpen Exchange Rates APIに切り替え予定）
+const USD_RATE    = 150; // 参考レート（v1.0でOpen Exchange Rates APIに切り替え予定）
 const REVERB_BASE = 'https://api.reverb.com/api';
-const PER_PAGE = 50; // Reverbの1リクエストあたり最大取得件数
+const EBAY_FINDING_BASE = 'https://svcs.ebay.com/services/search/FindingService/v1';
+const PER_PAGE = 50;
 
-// ── Reverb コンディション → 内部スキーマ変換 ─────────────────
+// ════════════════════════════════════════════════════════════
+// REVERB
+// ════════════════════════════════════════════════════════════
+
 const REVERB_CONDITION_MAP = {
   'Brand New':      '新品同様',
   'Mint':           '新品同様',
@@ -29,19 +33,17 @@ const REVERB_CONDITION_MAP = {
   'B-Stock':        '普通',
 };
 
-function normalizeCondition(displayName) {
+function normalizeReverbCondition(displayName) {
   if (!displayName) return '普通';
   return REVERB_CONDITION_MAP[displayName] || '普通';
 }
 
-// Reverb ステート → 内部スキーマ変換
-function normalizeStatus(stateSlug) {
-  if (stateSlug === 'sold')  return 'sold';
-  if (stateSlug === 'live')  return 'listing';
+function normalizeReverbStatus(stateSlug) {
+  if (stateSlug === 'sold') return 'sold';
+  if (stateSlug === 'live') return 'listing';
   return 'ended';
 }
 
-// Reverb の listing オブジェクト → 共通スキーマ
 function normalizeReverbListing(listing) {
   const rawPrice = parseFloat(listing.price?.amount ?? 0);
   const currency = (listing.price?.currency ?? 'USD').toUpperCase();
@@ -53,14 +55,12 @@ function normalizeReverbListing(listing) {
     ? rawPrice
     : Math.round(rawPrice / USD_RATE);
 
-  // 出品日（ISO 8601 → YYYY-MM-DD）
   const rawDate = listing.published_at ?? listing.created_at ?? '';
   const date = rawDate ? rawDate.slice(0, 10) : new Date().toISOString().slice(0, 10);
 
-  // URL（Reverb の商品ページ）
-  const url = listing._links?.web?.href ?? listing.slug
+  const url = listing._links?.web?.href ?? (listing.slug
     ? `https://reverb.com/item/${listing.id}-${listing.slug}`
-    : 'https://reverb.com';
+    : 'https://reverb.com');
 
   return {
     platform:  'Reverb',
@@ -69,22 +69,16 @@ function normalizeReverbListing(listing) {
     currency,
     priceJPY,
     priceUSD,
-    condition: normalizeCondition(listing.condition?.display_name),
-    status:    normalizeStatus(listing.state?.slug),
+    condition: normalizeReverbCondition(listing.condition?.display_name),
+    status:    normalizeReverbStatus(listing.state?.slug),
     date,
     url,
     source:    'reverb_api',
   };
 }
 
-// ── Reverb API 呼び出し ───────────────────────────────────────
 async function searchReverb(query, apiKey) {
-  const params = new URLSearchParams({
-    query,
-    per_page: String(PER_PAGE),
-    // sold + live 両方を取得する（価格相場調査のため）
-  });
-
+  const params = new URLSearchParams({ query, per_page: String(PER_PAGE) });
   const headers = {
     'Authorization':  `Bearer ${apiKey}`,
     'Accept':         'application/hal+json',
@@ -92,40 +86,140 @@ async function searchReverb(query, apiKey) {
     'Content-Type':   'application/hal+json',
   };
 
-  // ① 成約済み（sold）を取得
-  const soldUrl  = `${REVERB_BASE}/listings/all?${params}&state[]=sold`;
-  // ② 出品中（live）を取得
-  const liveUrl  = `${REVERB_BASE}/listings/all?${params}&state[]=live`;
-
   const [soldRes, liveRes] = await Promise.all([
-    fetch(soldUrl, { headers }),
-    fetch(liveUrl, { headers }),
+    fetch(`${REVERB_BASE}/listings/all?${params}&state[]=sold`, { headers }),
+    fetch(`${REVERB_BASE}/listings/all?${params}&state[]=live`, { headers }),
+  ]);
+
+  const results = [];
+  if (soldRes.ok) {
+    const d = await soldRes.json();
+    results.push(...(d.listings ?? []).map(normalizeReverbListing));
+  }
+  if (liveRes.ok) {
+    const d = await liveRes.json();
+    results.push(...(d.listings ?? []).map(normalizeReverbListing));
+  }
+  return results;
+}
+
+// ════════════════════════════════════════════════════════════
+// EBAY Finding API
+// ════════════════════════════════════════════════════════════
+
+// eBay conditionId → 内部スキーマ
+const EBAY_CONDITION_MAP = {
+  '1000': '新品同様', // New
+  '1500': '新品同様', // New other
+  '2000': '良好',    // Manufacturer refurbished
+  '2500': '良好',    // Seller refurbished
+  '3000': '良好',    // Used
+  '4000': '良好',    // Very Good
+  '5000': '普通',    // Good
+  '6000': '普通',    // Acceptable
+  '7000': 'ジャンク', // For parts or not working
+};
+
+function normalizeEbayCondition(conditionId) {
+  return EBAY_CONDITION_MAP[String(conditionId)] || '普通';
+}
+
+// eBay の item オブジェクト → 共通スキーマ
+function normalizeEbayItem(item, status) {
+  // eBay の JSON レスポンスは配列でラップされている
+  const title    = (item.title?.[0] ?? '').trim();
+  const currency = item.sellingStatus?.[0]?.currentPrice?.[0]?.['@currencyId'] ?? 'USD';
+  const rawPrice = parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.['__value__'] ?? 0);
+
+  const priceJPY = currency === 'USD'
+    ? Math.round(rawPrice * USD_RATE)
+    : Math.round(rawPrice);
+  const priceUSD = currency === 'USD'
+    ? rawPrice
+    : Math.round(rawPrice / USD_RATE);
+
+  // 日付: 成約済みは endTime、出品中は startTime
+  const rawDate = status === 'sold'
+    ? (item.listingInfo?.[0]?.endTime?.[0] ?? '')
+    : (item.listingInfo?.[0]?.startTime?.[0] ?? '');
+  const date = rawDate ? rawDate.slice(0, 10) : new Date().toISOString().slice(0, 10);
+
+  const conditionId = item.condition?.[0]?.conditionId?.[0] ?? '3000';
+  const url = item.viewItemURL?.[0] ?? 'https://www.ebay.com';
+
+  return {
+    platform:  'eBay',
+    title,
+    price:     currency === 'USD' ? rawPrice : null,
+    currency,
+    priceJPY,
+    priceUSD,
+    condition: normalizeEbayCondition(conditionId),
+    status,
+    date,
+    url,
+    source:    'ebay_api',
+  };
+}
+
+// eBay Finding API を呼び出す共通関数
+async function ebayFindingRequest(operation, query, appId) {
+  const url = `${EBAY_FINDING_BASE}` +
+    `?OPERATION-NAME=${operation}` +
+    `&SERVICE-VERSION=1.0.0` +
+    `&SECURITY-APPNAME=${encodeURIComponent(appId)}` +
+    `&RESPONSE-DATA-FORMAT=JSON` +
+    `&keywords=${encodeURIComponent(query)}` +
+    `&paginationInput.entriesPerPage=${PER_PAGE}` +
+    `&sortOrder=EndTimeSoonest` +
+    `&itemFilter(0).name=ListingType&itemFilter(0).value=FixedPrice`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`eBay API ${operation} failed: ${res.status}`);
+  return res.json();
+}
+
+async function searchEbay(query, appId) {
+  // 成約済み + 出品中 を並列取得
+  const [soldData, liveData] = await Promise.all([
+    ebayFindingRequest('findCompletedItems', query, appId).catch(e => {
+      console.warn('[eBay] findCompletedItems error:', e.message);
+      return null;
+    }),
+    ebayFindingRequest('findItemsAdvanced', query, appId).catch(e => {
+      console.warn('[eBay] findItemsAdvanced error:', e.message);
+      return null;
+    }),
   ]);
 
   const results = [];
 
-  if (soldRes.ok) {
-    const soldData = await soldRes.json();
-    const normalized = (soldData.listings ?? []).map(normalizeReverbListing);
-    results.push(...normalized);
-  } else {
-    console.warn('Reverb sold fetch failed:', soldRes.status, soldRes.statusText);
+  // 成約済み
+  if (soldData) {
+    const items = soldData.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item ?? [];
+    // EndedWithSales のみ「sold」、それ以外は「ended」
+    for (const item of items) {
+      const state = item.sellingStatus?.[0]?.sellingState?.[0] ?? '';
+      const status = state === 'EndedWithSales' ? 'sold' : 'ended';
+      results.push(normalizeEbayItem(item, status));
+    }
   }
 
-  if (liveRes.ok) {
-    const liveData = await liveRes.json();
-    const normalized = (liveData.listings ?? []).map(normalizeReverbListing);
-    results.push(...normalized);
-  } else {
-    console.warn('Reverb live fetch failed:', liveRes.status, liveRes.statusText);
+  // 出品中
+  if (liveData) {
+    const items = liveData.findItemsAdvancedResponse?.[0]?.searchResult?.[0]?.item ?? [];
+    for (const item of items) {
+      results.push(normalizeEbayItem(item, 'listing'));
+    }
   }
 
   return results;
 }
 
-// ── メインハンドラ ─────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// メインハンドラ
+// ════════════════════════════════════════════════════════════
 module.exports = async function handler(req, res) {
-  // CORS（同一ドメインからも、ローカル開発時も動くように）
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -138,42 +232,57 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Query parameter "q" is required' });
   }
 
-  const apiKey = process.env.REVERB_API_KEY;
+  const reverbKey = process.env.REVERB_API_KEY;
+  const ebayAppId = process.env.EBAY_APP_ID;
 
-  // ── API Key 未設定の場合: 空結果を返す（フロントのフォールバックに委ねる）──
-  if (!apiKey) {
-    console.warn('REVERB_API_KEY is not set. Returning empty results.');
+  if (!reverbKey && !ebayAppId) {
     return res.status(200).json({
-      source:            'no_api_key',
-      query,
-      total:             0,
-      listings:          [],
+      source: 'no_api_key', query, total: 0, listings: [],
       platforms_searched: [],
-      warning:           'REVERB_API_KEY environment variable is not configured.',
+      warning: 'No API keys configured.',
     });
   }
 
   try {
-    const listings = await searchReverb(query, apiKey);
+    // Reverb + eBay を並列検索（どちらかが失敗しても続行）
+    const [reverbResults, ebayResults] = await Promise.all([
+      reverbKey
+        ? searchReverb(query, reverbKey).catch(e => {
+            console.error('[Reverb] error:', e.message);
+            return [];
+          })
+        : Promise.resolve([]),
+      ebayAppId
+        ? searchEbay(query, ebayAppId).catch(e => {
+            console.error('[eBay] error:', e.message);
+            return [];
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const listings = [...reverbResults, ...ebayResults];
 
     // 日付降順でソート
     listings.sort((a, b) => new Date(b.date) - new Date(a.date));
 
+    const platformsSearched = [
+      ...(reverbKey  ? ['Reverb'] : []),
+      ...(ebayAppId  ? ['eBay']   : []),
+    ];
+
     return res.status(200).json({
-      source:            'reverb_api',
+      source: 'multi_api',
       query,
-      total:             listings.length,
+      total: listings.length,
       listings,
-      platforms_searched: ['Reverb'],
+      platforms_searched: platformsSearched,
     });
 
   } catch (err) {
     console.error('Search handler error:', err.message);
     return res.status(500).json({
-      error:             'Search failed',
-      message:           err.message,
-      listings:          [],
-      platforms_searched: [],
+      error: 'Search failed', message: err.message,
+      listings: [], platforms_searched: [],
     });
   }
 };
