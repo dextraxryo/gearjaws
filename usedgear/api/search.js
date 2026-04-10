@@ -189,36 +189,22 @@ async function ebayFindingRequest(operation, query, appId) {
 }
 
 async function searchEbay(query, appId) {
-  // 成約済み + 出品中 を並列取得
-  const [soldData, liveData] = await Promise.all([
-    ebayFindingRequest('findCompletedItems', query, appId).catch(e => {
-      console.warn('[eBay] findCompletedItems error:', e.message);
-      return null;
-    }),
-    ebayFindingRequest('findItemsAdvanced', query, appId).catch(e => {
-      console.warn('[eBay] findItemsAdvanced error:', e.message);
-      return null;
-    }),
-  ]);
+  // v1.0: findCompletedItems のみ（成約済み）
+  // API コール数を節約するため出品中(findItemsAdvanced)は省略
+  // 価格相場調査には成約済みデータが最重要
+  const soldData = await ebayFindingRequest('findCompletedItems', query, appId).catch(e => {
+    console.warn('[eBay] findCompletedItems error:', e.message);
+    return null;
+  });
 
   const results = [];
 
-  // 成約済み
   if (soldData) {
     const items = soldData.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item ?? [];
-    // EndedWithSales のみ「sold」、それ以外は「ended」
     for (const item of items) {
       const state = item.sellingStatus?.[0]?.sellingState?.[0] ?? '';
       const status = state === 'EndedWithSales' ? 'sold' : 'ended';
       results.push(normalizeEbayItem(item, status));
-    }
-  }
-
-  // 出品中
-  if (liveData) {
-    const items = liveData.findItemsAdvancedResponse?.[0]?.searchResult?.[0]?.item ?? [];
-    for (const item of items) {
-      results.push(normalizeEbayItem(item, 'listing'));
     }
   }
 
