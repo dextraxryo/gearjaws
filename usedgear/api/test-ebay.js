@@ -27,10 +27,12 @@ module.exports = async function handler(req, res) {
       `&sortOrder=${sortOrder}`;
 
     try {
-      const r = await fetch(url);
+      const r = await fetch(url, {
+        headers: { 'X-EBAY-SOA-GLOBAL-ID': 'EBAY-US' },
+      });
       const text = await r.text();
       let json;
-      try { json = JSON.parse(text); } catch { json = { raw: text.slice(0, 500) }; }
+      try { json = JSON.parse(text); } catch { json = null; }
 
       const respKey = op === 'findCompletedItems'
         ? 'findCompletedItemsResponse'
@@ -38,6 +40,7 @@ module.exports = async function handler(req, res) {
 
       results[op] = {
         status: r.status,
+        rawBody: text.slice(0, 800),  // 生レスポンスを表示
         itemCount: json?.[respKey]?.[0]?.searchResult?.[0]?.['@count'] ?? 'N/A',
         ack: json?.[respKey]?.[0]?.ack?.[0] ?? 'N/A',
         errorMessage: json?.[respKey]?.[0]?.errorMessage?.[0]?.error?.[0]?.message?.[0] ?? null,
