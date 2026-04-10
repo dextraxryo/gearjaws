@@ -164,6 +164,13 @@ function normalizeEbayItem(item, status) {
 
 // eBay Finding API を呼び出す共通関数
 async function ebayFindingRequest(operation, query, appId) {
+  // sortOrder: findCompletedItems は EndTimeSoonest、findItemsAdvanced は StartTimeNewest
+  const sortOrder = operation === 'findCompletedItems'
+    ? 'EndTimeSoonest'
+    : 'StartTimeNewest';
+
+  // FixedPrice フィルターを外す → オークション・固定価格の両方を取得
+  // （ビンテージ機材はオークション出品が多いため必須）
   const url = `${EBAY_FINDING_BASE}` +
     `?OPERATION-NAME=${operation}` +
     `&SERVICE-VERSION=1.0.0` +
@@ -171,11 +178,13 @@ async function ebayFindingRequest(operation, query, appId) {
     `&RESPONSE-DATA-FORMAT=JSON` +
     `&keywords=${encodeURIComponent(query)}` +
     `&paginationInput.entriesPerPage=${PER_PAGE}` +
-    `&sortOrder=EndTimeSoonest` +
-    `&itemFilter(0).name=ListingType&itemFilter(0).value=FixedPrice`;
+    `&sortOrder=${sortOrder}`;
 
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`eBay API ${operation} failed: ${res.status}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`eBay API ${operation} failed: ${res.status} ${text.slice(0, 200)}`);
+  }
   return res.json();
 }
 
