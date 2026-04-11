@@ -212,6 +212,23 @@ async function searchEbay(query, appId) {
 }
 
 // ════════════════════════════════════════════════════════════
+// スクレイピング内部呼び出しヘルパー
+// ════════════════════════════════════════════════════════════
+
+// 同一 Vercel デプロイの別 API エンドポイントを呼び出す
+async function scrapeInternal(path, req) {
+  // ホスト名を動的に解決（ローカル / 本番 両対応）
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'gearjaws.vercel.app';
+  const proto = req.headers['x-forwarded-proto'] || 'https';
+  const url = `${proto}://${host}${path}`;
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) return [];
+  const json = await res.json();
+  return json.listings || [];
+}
+
+// ════════════════════════════════════════════════════════════
 // メインハンドラ
 // ════════════════════════════════════════════════════════════
 module.exports = async function handler(req, res) {
@@ -239,30 +256,43 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // Reverb + eBay を並列検索（どちらかが失敗しても続行）
-    const [reverbResults, ebayResults] = await Promise.all([
+    // 全プラットフォームを並列検索（どれかが失敗しても続行）
+    const [reverbResults, ebayResults, rockonResults, vintagekingResults] = await Promise.all([
       reverbKey
         ? searchReverb(query, reverbKey).catch(e => {
-            console.error('[Reverb] error:', e.message);
-            return [];
+            console.error('[Reverb] error:', e.message); return [];
           })
         : Promise.resolve([]),
       ebayAppId
         ? searchEbay(query, ebayAppId).catch(e => {
-            console.error('[eBay] error:', e.message);
-            return [];
+            console.error('[eBay] error:', e.message); return [];
           })
         : Promise.resolve([]),
+      // Rock oN スクレイピング（内部 API 呼び出し）
+      scrapeInternal(`/api/scrape-rockon?q=${encodeURIComponent(query)}`, req).catch(e => {
+        console.error('[RockOn] error:', e.message); return [];
+      }),
+      // Vintage King スクレイピング（内部 API 呼び出し）
+      scrapeInternal(`/api/scrape-vintageking?q=${encodeURIComponent(query)}`, req).catch(e => {
+        console.error('[VintageKing] error:', e.message); return [];
+      }),
     ]);
 
-    const listings = [...reverbResults, ...ebayResults];
+    const listings = [
+      ...reverbResults,
+      ...ebayResults,
+      ...rockonResults,
+      ...vintagekingResults,
+    ];
 
     // 日付降順でソート
     listings.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const platformsSearched = [
-      ...(reverbKey  ? ['Reverb'] : []),
-      ...(ebayAppId  ? ['eBay']   : []),
+      ...(reverbKey            ? ['Reverb']       : []),
+      ...(ebayAppId            ? ['eBay']          : []),
+      ...(rockonResults.length > 0  ? ['Rock oN']      : []),
+      ...(vintagekingResults.length > 0 ? ['Vintage King'] : []),
     ];
 
     return res.status(200).json({
