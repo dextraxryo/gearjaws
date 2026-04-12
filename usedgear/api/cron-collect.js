@@ -116,9 +116,24 @@ module.exports = async function handler(req, res) {
         const searchUrl = `${proto}://${host}/api/search?q=${encodeURIComponent(product.name)}&nocache=${Date.now()}`;
         const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(15000) });
 
-        if (!searchRes.ok) throw new Error(`search API returned ${searchRes.status}`);
+        if (!searchRes.ok) {
+          const errBody = await searchRes.text();
+          throw new Error(`search HTTP ${searchRes.status}: ${errBody.slice(0, 300)}`);
+        }
 
-        const { listings = [] } = await searchRes.json();
+        const rawText = await searchRes.text();
+        if (!rawText || rawText.trim() === '') {
+          throw new Error(`search API empty body (url: ${searchUrl})`);
+        }
+
+        let json;
+        try {
+          json = JSON.parse(rawText);
+        } catch (e) {
+          throw new Error(`search JSON parse failed: ${rawText.slice(0, 300)}`);
+        }
+
+        const listings = json.listings || [];
         const rows = aggregateByPlatform(listings, product.id, product.name.toLowerCase());
 
         if (rows.length > 0) {
