@@ -20,6 +20,68 @@ function parseUsdPrice(str) {
   return isNaN(num) ? null : num;
 }
 
+// ── 関連性フィルタリング ──────────────────────────────────
+// これらのキーワードを含むタイトルは除外
+const EXCLUDE_WORDS = [
+  // ソフトウェア / ライセンス
+  'software', 'plugin', 'plug-in', 'plug in', 'license', 'licence',
+  'ilok', 'download', 'activation', 'subscription', 'serial key', 'usb key',
+  // アパレル
+  't-shirt', 'tshirt', 'shirt', 'hoodie', 'hat', 'cap', 'apparel',
+  // ケーブル・消耗品
+  'cable', 'patch cable', 'patchbay', 'patch bay', 'power supply',
+  'rack screw', 'rack ear', 'rack kit', 'rack mount kit',
+  // 書籍 / メディア
+  'service manual', 'user manual', 'user guide', 'owner manual',
+  'book', 'dvd', 'blu-ray', 'online course',
+];
+
+/**
+ * クエリとタイトルの関連性チェック
+ *
+ * ロジック:
+ *  1. EXCLUDE_WORDS にヒットしたら即除外
+ *  2. クエリを英数字トークン（2文字以上）に分割
+ *  3. 型番トークン（数字を含む: "1073", "u87", "1176"）が存在する場合、
+ *     タイトルにそのうち少なくとも1つが含まれなければ除外
+ *  4. 全トークンのマッチ率チェック
+ *     - 型番あり: 50%以上
+ *     - 型番なし（ブランド名のみ等）: 100%（全トークン一致）
+ *
+ * @param {string} title  商品タイトル
+ * @param {string} query  検索クエリ
+ * @returns {boolean}
+ */
+function isRelevant(title, query) {
+  const titleLow = title.toLowerCase();
+  const queryLow = query.toLowerCase();
+
+  // 1. ノイズキーワード除外
+  if (EXCLUDE_WORDS.some(w => titleLow.includes(w))) return false;
+
+  // 2. クエリトークン（英数字2文字以上）
+  const tokens = queryLow.match(/[a-z0-9]{2,}/g) || [];
+  if (!tokens.length) return true;
+
+  // 3. 型番トークン（数字を含む）
+  const modelTokens = tokens.filter(t => /\d/.test(t));
+  if (modelTokens.length > 0) {
+    // タイトルから記号を除いた文字列（"u-87" → "u87" のようなハイフン無視）
+    const titleAlnum = titleLow.replace(/[^a-z0-9]/g, '');
+    const hasModel = modelTokens.some(m => {
+      const mClean = m.replace(/[^a-z0-9]/g, '');
+      return titleLow.includes(m) || titleAlnum.includes(mClean);
+    });
+    // 型番がタイトルに一切含まれない → 除外
+    if (!hasModel) return false;
+  }
+
+  // 4. マッチ率チェック
+  const matchCount = tokens.filter(t => titleLow.includes(t)).length;
+  const threshold  = modelTokens.length > 0 ? 0.5 : 1.0;
+  return (matchCount / tokens.length) >= threshold;
+}
+
 function mapCondition(str) {
   const s = (str || '').toLowerCase();
   if (s.includes('mint') || s.includes('excellent') || s.includes('like new')) return '新品同様';
@@ -77,21 +139,25 @@ async function parseVintageKing(html, cheerio, query, debug) {
     debugInfo.page_title   = $('title').text().slice(0, 80);
     debugInfo.h1_texts     = $('h1').map((_, el) => $(el).text().trim()).get().slice(0, 3);
     debugInfo.item_count   = itemSelector ? $(itemSelector).length : 0;
-    // 最初の product-item の生 HTML を確認（セレクター調整の手がかり）
-    debugInfo.first_item_html = itemSelector
-      ? $.html($(itemSelector).first()).slice(0, 1500)
+    // 全タイトルとフィルター結果を確認
+    const allTitles = [];
+    if (itemSelector) {
+      $(itemSelector).each((_, el) => {
+        let title = null;
+        for (const sel of TITLE_SELECTORS) {
+          const t = $(el).find(sel).first().text().trim();
+          if (t) { title = t; break; }
+        }
+        if (!title) title = $(el).find('a').first().text().trim();
+        if (title) allTitles.push({ title, relevant: isRelevant(title, query) });
+      });
+    }
+    debugInfo.titles_with_relevance = allTitles.slice(0, 30);
+    debugInfo.relevant_count   = allTitles.filter(x => x.relevant).length;
+    debugInfo.irrelevant_count = allTitles.filter(x => !x.relevant).length;
+    debugInfo.first_item_html  = itemSelector
+      ? $.html($(itemSelector).first()).slice(0, 800)
       : 'no items found';
-    // price セレクターの確認
-    debugInfo.price_samples = PRICE_SELECTORS.map(sel => ({
-      selector: sel,
-      count: $(sel).length,
-      sample: $(sel).first().text().trim().slice(0, 30),
-    }));
-    debugInfo.title_samples = TITLE_SELECTORS.map(sel => ({
-      selector: sel,
-      count: $(sel).length,
-      sample: $(sel).first().text().trim().slice(0, 50),
-    }));
     return { results: [], debug: debugInfo };
   }
 
@@ -105,6 +171,9 @@ async function parseVintageKing(html, cheerio, query, debug) {
     }
     if (!title) title = $(el).find('a').first().text().trim();
     if (!title) return;
+
+    // 関連性フィルタ: クエリと無関係な商品・ノイズを除外
+    if (!isRelevant(title, query)) return;
 
     let priceUSD = null;
     for (const sel of PRICE_SELECTORS) {
