@@ -5,6 +5,7 @@
  * GET /api/scrape-vintageking?q=neve+1073&debug=1
  */
 
+const cheerio = require('cheerio');
 const USD_RATE = 150;
 
 function buildVintageKingUrl(query) {
@@ -71,13 +72,24 @@ async function parseVintageKing(html, cheerio, query, debug) {
   }
 
   if (debug) {
-    debugInfo.page_title   = $('title').text();
+    debugInfo.page_title   = $('title').text().slice(0, 80);
     debugInfo.h1_texts     = $('h1').map((_, el) => $(el).text().trim()).get().slice(0, 3);
-    debugInfo.html_snippet = html.slice(0, 2000);
     debugInfo.item_count   = itemSelector ? $(itemSelector).length : 0;
-    debugInfo.all_classes  = [...new Set(
-      $('[class]').map((_, el) => $(el).attr('class')?.split(' ')[0]).get()
-    )].filter(Boolean).slice(0, 30);
+    // 最初の product-item の生 HTML を確認（セレクター調整の手がかり）
+    debugInfo.first_item_html = itemSelector
+      ? $.html($(itemSelector).first()).slice(0, 1500)
+      : 'no items found';
+    // price セレクターの確認
+    debugInfo.price_samples = PRICE_SELECTORS.map(sel => ({
+      selector: sel,
+      count: $(sel).length,
+      sample: $(sel).first().text().trim().slice(0, 30),
+    }));
+    debugInfo.title_samples = TITLE_SELECTORS.map(sel => ({
+      selector: sel,
+      count: $(sel).length,
+      sample: $(sel).first().text().trim().slice(0, 50),
+    }));
     return { results: [], debug: debugInfo };
   }
 
@@ -136,8 +148,6 @@ module.exports = async function handler(req, res) {
   if (!query) return res.status(400).json({ error: 'q is required' });
 
   try {
-    const cheerio = await import('cheerio');
-
     const url = buildVintageKingUrl(query);
     const response = await fetch(url, {
       headers: {

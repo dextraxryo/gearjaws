@@ -7,14 +7,18 @@
  * 注意: robots.txt / ToS の範囲内で、低頻度（Cron週1）での利用を想定
  */
 
+const cheerio = require('cheerio');
 const USD_RATE = 150;
 
-// Rock oN Company の中古品検索 URL候補
-function buildRockOnUrl(query) {
-  // エンコードしたクエリ
+// Rock oN Company の中古品検索 URL候補（複数試す）
+function buildRockOnUrls(query) {
   const q = encodeURIComponent(query);
-  // Rock oN の中古品検索URL（実際のURLはデプロイ後に確認して調整）
-  return `https://www.rock-on.jp/ec/products?keyword=${q}&stock_status=used`;
+  return [
+    `https://www.rock-on.jp/ec/products?keyword=${q}&stock_status=used`,
+    `https://www.rock-on.jp/products?keyword=${q}&is_used=1`,
+    `https://www.rock-on.jp/shop/goods/search.aspx?keyword=${q}&used=1`,
+    `https://www.rock-on.jp/search?q=${q}&type=used`,
+  ];
 }
 
 // 価格文字列（「¥198,000」「198,000円」等）→ 数値
@@ -127,37 +131,48 @@ module.exports = async function handler(req, res) {
   if (!query) return res.status(400).json({ error: 'q is required' });
 
   try {
-    // cheerio を動的に import（Vercel は node_modules から自動解決）
-    const cheerio = await import('cheerio');
+    const urls = buildRockOnUrls(query);
+    const urlResults = [];
 
-    const url = buildRockOnUrl(query);
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; GearJaws/1.0; price-research-bot)',
-        'Accept-Language': 'ja,en;q=0.9',
-        'Accept': 'text/html,application/xhtml+xml',
-      },
-      signal: AbortSignal.timeout(8000),
-    });
+    // 複数 URL を順番に試す
+    for (const url of urls) {
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'ja,en;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          },
+          signal: AbortSignal.timeout(7000),
+          redirect: 'follow',
+        });
 
-    if (!response.ok) {
-      return res.status(200).json({
-        source: 'rockon_scrape',
-        error: `HTTP ${response.status}`,
-        url,
-        listings: [],
-      });
+        urlResults.push({ url, status: response.status });
+
+        if (!response.ok) continue;
+
+        const html = await response.text();
+        const { results, debug: debugInfo } = await parseRockOn(html, cheerio, query, debug);
+
+        return res.status(200).json({
+          source:   'rockon_scrape',
+          url,
+          total:    results.length,
+          listings: results,
+          ...(debug ? { debug: { ...debugInfo, urls_tried: urlResults } } : {}),
+        });
+
+      } catch (fetchErr) {
+        urlResults.push({ url, error: fetchErr.message });
+      }
     }
 
-    const html = await response.text();
-    const { results, debug: debugInfo } = await parseRockOn(html, cheerio, query, debug);
-
+    // 全 URL 失敗
     return res.status(200).json({
-      source:   'rockon_scrape',
-      url,
-      total:    results.length,
-      listings: results,
-      ...(debug ? { debug: debugInfo } : {}),
+      source: 'rockon_scrape',
+      error: 'All URLs failed',
+      urls_tried: urlResults,
+      listings: [],
     });
 
   } catch (err) {
