@@ -148,3 +148,28 @@ CREATE OR REPLACE VIEW uncovered_queries AS
     AND data_source = 'no_match'
   GROUP BY query
   ORDER BY search_count DESC;
+
+-- ───────────────────────────────────────────────
+-- 7. price_snapshots テーブル（価格トレンド履歴）Session F
+-- ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS price_snapshots (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id     UUID REFERENCES products(id) ON DELETE CASCADE,
+  query          TEXT NOT NULL,
+  platform       TEXT NOT NULL,        -- 'Reverb' | 'eBay' | 'Vintage King' | 'all'
+  snapshot_date  DATE NOT NULL DEFAULT CURRENT_DATE,
+  listing_count  INTEGER DEFAULT 0,
+  avg_price_jpy  INTEGER,
+  min_price_jpy  INTEGER,
+  med_price_jpy  INTEGER,
+  max_price_jpy  INTEGER,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (product_id, platform, snapshot_date)
+);
+
+CREATE INDEX IF NOT EXISTS price_snapshots_product_id_idx    ON price_snapshots(product_id);
+CREATE INDEX IF NOT EXISTS price_snapshots_snapshot_date_idx ON price_snapshots(snapshot_date DESC);
+CREATE INDEX IF NOT EXISTS price_snapshots_query_idx         ON price_snapshots(query);
+
+ALTER TABLE price_snapshots ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "price_snapshots_public_read" ON price_snapshots FOR SELECT USING (true);

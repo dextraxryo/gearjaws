@@ -1,11 +1,27 @@
 {
+  "crons": [
+    {
+      "path": "/api/cron-collect",
+      "schedule": "0 2 * * *"
+    }
+  ],
   "functions": {
     "api/search.js": {
       "maxDuration": 10,
       "memory": 256
+    },
+    "api/cron-collect.js": {
+      "maxDuration": 60,
+      "memory": 256
     }
   },
   "headers": [
+    {
+      "source": "/api/cron-collect",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
     {
       "source": "/api/(.*)",
       "headers": [

@@ -13,6 +13,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="robots" content="index, follow">
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -556,6 +557,31 @@
 
       <!-- Stats cards -->
       <div id="stats-row" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px"></div>
+
+      <!-- Price Trend Chart (Session F) -->
+      <div id="price-trend-card" style="display:none;margin-bottom:14px">
+        <div class="card" style="padding:18px 20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <i class="fas fa-chart-line" style="color:var(--accent);font-size:14px"></i>
+              <span id="trend-title" style="font-size:13px;font-weight:700;color:var(--tx1)">価格トレンド</span>
+              <span id="trend-range-badge" class="badge" style="background:#e0e7ff;color:#3730a3;font-size:10px">過去60日</span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button onclick="changeTrendDays(30)"  id="tbtn-30"  class="trend-btn" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border-md);background:var(--surface2);color:var(--tx2);cursor:pointer">30日</button>
+              <button onclick="changeTrendDays(60)"  id="tbtn-60"  class="trend-btn" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer">60日</button>
+              <button onclick="changeTrendDays(90)"  id="tbtn-90"  class="trend-btn" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border-md);background:var(--surface2);color:var(--tx2);cursor:pointer">90日</button>
+            </div>
+          </div>
+          <div id="trend-chart-wrap" style="position:relative;height:200px">
+            <canvas id="trend-chart"></canvas>
+          </div>
+          <div id="trend-no-data" style="display:none;padding:32px 0;text-align:center;color:var(--tx3);font-size:13px">
+            <i class="fas fa-hourglass-half" style="font-size:22px;margin-bottom:10px;display:block;opacity:0.5"></i>
+            <span id="trend-no-data-text">価格データを収集中です。明日以降に自動更新されます。</span>
+          </div>
+        </div>
+      </div>
 
       <!-- Google Trends card -->
       <div id="trend-card" style="display:none;margin-bottom:14px"></div>
@@ -1322,6 +1348,7 @@ let S = {
   currency: "JPY", // "JPY" | "USD"
   noMatch: false,  // true when query didn't match any DB key
   dataSource: 'none', // 'reverb_api' | 'mock_db' | 'no_match' | 'none'
+  trendDays: 60,   // 価格トレンド表示期間（Session F）
 };
 
 // ═══════════════════════════════════════════
@@ -1436,6 +1463,9 @@ async function doSearch() {
 
   // 検索ログを非同期で記録（fire-and-forget：失敗してもUI に影響しない）
   logSearch(q, data.length, S.dataSource);
+
+  // 価格トレンドグラフを非同期ロード（Session F）
+  loadPriceHistory(q, S.trendDays || 60);
 }
 
 // ── 検索ログ記録（Supabase / v0.3 Session C）──────────────────
@@ -1452,6 +1482,156 @@ function logSearch(query, resultCount, dataSource) {
       platformsSearched,
     }),
   }).catch(() => { /* ログ失敗は無視 */ });
+}
+
+// ── 価格トレンドグラフ（Session F）────────────────────────────
+
+let _trendChart = null; // Chart.js インスタンス保持
+
+async function loadPriceHistory(query, days) {
+  const card     = document.getElementById('price-trend-card');
+  const wrap     = document.getElementById('trend-chart-wrap');
+  const noData   = document.getElementById('trend-no-data');
+  const noTxt    = document.getElementById('trend-no-data-text');
+  const titleEl  = document.getElementById('trend-title');
+  if (!card) return;
+
+  try {
+    const res  = await fetch(`/api/price-history?q=${encodeURIComponent(query)}&days=${days}&platform=all`);
+    const json = await res.json();
+
+    if (!json.history || json.history.length === 0) {
+      // データなし → 収集中メッセージを表示
+      card.style.display = 'block';
+      wrap.style.display = 'none';
+      noData.style.display = 'block';
+      noTxt.textContent = LANG === 'en'
+        ? 'Collecting price data. Will update automatically tomorrow.'
+        : '価格データを収集中です。明日以降に自動更新されます。';
+      return;
+    }
+
+    // データあり → チャートを描画
+    card.style.display = 'block';
+    wrap.style.display = 'block';
+    noData.style.display = 'none';
+    if (json.product_name) titleEl.textContent = `${json.product_name} 価格トレンド`;
+
+    renderPriceChart(json.history);
+  } catch (_) {
+    // API エラーは無視（チャートを隠すだけ）
+    if (card) card.style.display = 'none';
+  }
+}
+
+function renderPriceChart(history) {
+  const canvas = document.getElementById('trend-chart');
+  if (!canvas) return;
+
+  // 既存チャートを破棄
+  if (_trendChart) { _trendChart.destroy(); _trendChart = null; }
+
+  const labels   = history.map(d => d.snapshot_date);
+  const avgData  = history.map(d => d.avg_price_jpy);
+  const minData  = history.map(d => d.min_price_jpy);
+  const maxData  = history.map(d => d.max_price_jpy);
+
+  _trendChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: LANG === 'en' ? 'Avg Price' : '平均価格',
+          data: avgData,
+          borderColor: '#2563eb',
+          backgroundColor: 'rgba(37,99,235,0.08)',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          tension: 0.3,
+          fill: false,
+        },
+        {
+          label: LANG === 'en' ? 'Min' : '最安値',
+          data: minData,
+          borderColor: '#16a34a',
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+          pointRadius: 2,
+          tension: 0.3,
+          fill: false,
+        },
+        {
+          label: LANG === 'en' ? 'Max' : '最高値',
+          data: maxData,
+          borderColor: '#dc2626',
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+          pointRadius: 2,
+          tension: 0.3,
+          fill: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { font: { size: 11 }, boxWidth: 12, padding: 10 },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ¥${ctx.parsed.y?.toLocaleString()}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            font: { size: 10 },
+            maxTicksLimit: 8,
+            callback: function(val, idx) {
+              const d = this.getLabelForValue(val);
+              return d ? d.slice(5) : ''; // MM-DD のみ表示
+            },
+          },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+        },
+        y: {
+          ticks: {
+            font: { size: 10 },
+            callback: v => `¥${(v / 10000).toFixed(0)}万`,
+          },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+        },
+      },
+    },
+  });
+}
+
+function changeTrendDays(days) {
+  S.trendDays = days;
+  // ボタンのアクティブ状態を更新
+  [30, 60, 90].forEach(d => {
+    const btn = document.getElementById(`tbtn-${d}`);
+    if (!btn) return;
+    if (d === days) {
+      btn.style.background = 'var(--accent)';
+      btn.style.color = '#fff';
+      btn.style.borderColor = 'var(--accent)';
+    } else {
+      btn.style.background = 'var(--surface2)';
+      btn.style.color = 'var(--tx2)';
+      btn.style.borderColor = 'var(--border-md)';
+    }
+  });
+  const badge = document.getElementById('trend-range-badge');
+  if (badge) badge.textContent = `過去${days}日`;
+  if (S.query) loadPriceHistory(S.query, days);
 }
 
 function animateLoading() {
