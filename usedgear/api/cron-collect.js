@@ -138,9 +138,13 @@ module.exports = async function handler(req, res) {
 
         if (rows.length > 0) {
           // UPSERT（同日・同 product・同 platform は上書き）
-          await sbFetch('/price_snapshots', 'POST', rows, {
-            'Prefer': 'resolution=merge-duplicates',
-          });
+          // on_conflict を URL パラメータで明示しないと 409 になる
+          await sbFetch(
+            '/price_snapshots?on_conflict=product_id,platform,snapshot_date',
+            'POST',
+            rows,
+            { 'Prefer': 'resolution=merge-duplicates,return=minimal' }
+          );
         }
 
         log.push({ product: product.name, listings: listings.length, snapshots: rows.length, ok: true });
