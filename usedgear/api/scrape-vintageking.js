@@ -44,6 +44,7 @@ async function parseVintageKing(html, cheerio, query, debug) {
     '[class*="product-item"]',
   ];
   const TITLE_SELECTORS  = [
+    'a.product-item-link',     // Vintage King 実測セレクター
     '.product-item-name a',    // Magento 2 標準
     '.product-item-link',
     '.product-name a',
@@ -51,6 +52,7 @@ async function parseVintageKing(html, cheerio, query, debug) {
     '.name a',
   ];
   const PRICE_SELECTORS  = [
+    'span.price',              // Vintage King 実測セレクター
     '.price-box .price',       // Magento 2 標準
     '.special-price .price',
     '.regular-price .price',
@@ -110,7 +112,11 @@ async function parseVintageKing(html, cheerio, query, debug) {
       if (p) { priceUSD = parseUsdPrice(p); break; }
     }
 
-    let url = $(el).find('a').first().attr('href') || '';
+    // product-item-link が href を持つ → フォールバックで最初の a タグ
+    let url = $(el).find('a.product-item-link').first().attr('href')
+           || $(el).find('a.product photo').first().attr('href')
+           || $(el).find('a').first().attr('href')
+           || '';
     if (url && !url.startsWith('http')) url = 'https://vintageking.com' + url;
 
     let condition = '良好'; // Vintage King は中古品がメイン
