@@ -9,7 +9,35 @@
 // ============================================================
 
 // ── 定数 ─────────────────────────────────────────────────────
-const USD_RATE    = 150; // 参考レート（v1.0でOpen Exchange Rates APIに切り替え予定）
+const USD_RATE    = 150;
+
+// ── 全プラットフォーム共通・関連性フィルター ──────────────────
+const NOISE_EXCLUDE = [
+  'software', 'plugin', 'plug-in', 'license', 'licence', 'ilok',
+  'download', 'activation', 'subscription', 'serial key', 'usb key',
+  't-shirt', 'tshirt', 'shirt', 'hoodie', 'hat', 'apparel',
+  'cable', 'patch cable', 'power supply', 'rack screw', 'rack ear',
+  'service manual', 'user manual', 'owner manual', 'book', 'dvd', 'course',
+];
+
+function isRelevantTitle(title, query) {
+  const t = (title || '').toLowerCase();
+  const q = (query || '').toLowerCase();
+  if (!t) return false;
+  if (NOISE_EXCLUDE.some(w => t.includes(w))) return false;
+  const tokens = q.match(/[a-z0-9]{2,}/g) || [];
+  if (!tokens.length) return true;
+  const modelTokens = tokens.filter(tok => /\d/.test(tok));
+  if (modelTokens.length > 0) {
+    const tAlnum = t.replace(/[^a-z0-9]/g, '');
+    const hasModel = modelTokens.some(m =>
+      t.includes(m) || tAlnum.includes(m.replace(/[^a-z0-9]/g, ''))
+    );
+    if (!hasModel) return false;
+  }
+  const matchCount = tokens.filter(tok => t.includes(tok)).length;
+  return (matchCount / tokens.length) >= (modelTokens.length > 0 ? 0.5 : 1.0);
+} // 参考レート（v1.0でOpen Exchange Rates APIに切り替え予定）
 const REVERB_BASE = 'https://api.reverb.com/api';
 const EBAY_FINDING_BASE = 'https://svcs.ebay.com/services/search/FindingService/v1';
 const PER_PAGE = 50;
@@ -278,12 +306,13 @@ module.exports = async function handler(req, res) {
       }),
     ]);
 
+    // 全プラットフォームの結果を結合し、関連性フィルターを適用
     const listings = [
       ...reverbResults,
       ...ebayResults,
       ...rockonResults,
       ...vintagekingResults,
-    ];
+    ].filter(l => isRelevantTitle(l.title, query));
 
     // 日付降順でソート
     listings.sort((a, b) => new Date(b.date) - new Date(a.date));

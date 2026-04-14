@@ -1370,7 +1370,8 @@ let S = {
   statuses: new Set(),
   currency: "JPY", // "JPY" | "USD"
   noMatch: false,  // true when query didn't match any DB key
-  dataSource: 'none', // 'reverb_api' | 'mock_db' | 'no_match' | 'none'
+  dataSource: 'none', // 'multi_api' | 'mock_db' | 'no_match' | 'none'
+  apiPlatforms: [], // 実際に検索したプラットフォーム一覧
   trendDays: 60,   // 価格トレンド表示期間（Session F）
 };
 
@@ -1444,20 +1445,23 @@ async function doSearch() {
 
   let data = [];
   if (json.listings && json.listings.length > 0) {
-    // ✅ Reverb API から実データ取得成功
+    // ✅ API から実データ取得成功（Reverb / eBay / Vintage King）
     data = json.listings;
-    S.noMatch   = false;
-    S.dataSource = 'reverb_api';
+    S.noMatch      = false;
+    S.dataSource   = json.source || 'multi_api';
+    S.apiPlatforms = json.platforms_searched || [];
   } else {
     // フォールバック: ローカルモックDB
     const key = findDBKey(q);
     if (key) {
       data = [...DB[key]];
-      S.noMatch   = false;
-      S.dataSource = 'mock_db';
+      S.noMatch      = false;
+      S.dataSource   = 'mock_db';
+      S.apiPlatforms = [];
     } else {
-      S.noMatch   = true;
-      S.dataSource = 'no_match';
+      S.noMatch      = true;
+      S.dataSource   = 'no_match';
+      S.apiPlatforms = [];
     }
   }
 
@@ -1497,7 +1501,6 @@ async function doSearch() {
 
 // ── 検索ログ記録（Supabase / v0.3 Session C）──────────────────
 function logSearch(query, resultCount, dataSource) {
-  const platformsSearched = dataSource === 'reverb_api' ? ['reverb'] : [];
   fetch('/api/log-search', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1506,7 +1509,7 @@ function logSearch(query, resultCount, dataSource) {
       resultCount,
       dataSource,
       lang: LANG,
-      platformsSearched,
+      platformsSearched: S.apiPlatforms || [],
     }),
   }).catch(() => { /* ログ失敗は無視 */ });
 }
@@ -1757,50 +1760,62 @@ function changeTrendDays(days) {
 
 function animateLoading() {
   document.getElementById("loading-query-label").textContent = t('loading.fetching', S.query);
-  // v0.3: Reverb は LIVE API (index 1)。それ以外は「準備中」表示
+  // v1.0: Reverb / eBay / Vintage King が LIVE API
   const platforms = [
-    ["ls-ebay",     "eBay Sold Listings",                            false],
-    ["ls-reverb",   "Reverb.com",                                    true ],  // ← LIVE
-    ["ls-mercari",  "メルカリ",                                       false],
-    ["ls-yahoo",    "ヤフオク！",                                     false],
-    ["ls-rockon",   "Rock oN Company",                               false],
-    ["ls-vk",       "Vintage King",                                  false],
-    ["ls-sh",       "サウンドハウス",                                 false],
-    ["ls-ho",       "HARD OFF",                                      false],
+    ["ls-ebay",     "eBay Sold Listings",                                        true ],
+    ["ls-reverb",   "Reverb.com",                                                true ],
+    ["ls-mercari",  "メルカリ",                                                   false],
+    ["ls-yahoo",    "ヤフオク！",                                                 false],
+    ["ls-rockon",   "Rock oN Company",                                           false],
+    ["ls-vk",       "Vintage King",                                              true ],
+    ["ls-sh",       "サウンドハウス",                                             false],
+    ["ls-ho",       "HARD OFF",                                                  false],
     ["ls-amazon",   LANG==='en' ? "Amazon Marketplace" : "Amazon マーケットプレイス", false],
     ["ls-echigoya", LANG==='en' ? "Echigoya Music" : "えちごやミュージック",          false],
-    ["ls-fiveg",    "Five G",                                        false],
+    ["ls-fiveg",    "Five G",                                                    false],
   ];
   platforms.forEach(([id, name, live]) => {
     const el = document.getElementById(id);
-    if(el) {
-      el.style.color = live ? "#2563eb" : "";
-      el.textContent = live ? `⟳ ${name} (取得中...)` : `– ${name}`;
+    if (el) {
+      el.style.color = live ? "#2563eb" : "var(--tx3)";
+      el.textContent = live ? `⟳ ${name}` : `– ${name}`;
     }
   });
-  // Reverb のみ「完了」アニメーション（取得完了まで回転維持）
-  setTimeout(() => {
-    const reverbEl = document.getElementById("ls-reverb");
-    if(reverbEl && reverbEl.textContent.startsWith("⟳")) {
-      reverbEl.textContent = `✓ Reverb.com`;
-      reverbEl.style.color = "#15803d";
-    }
-  }, 850);
+  // LIVE プラットフォームを順番に「完了」アニメーション
+  const liveIds = [
+    ["ls-reverb", "Reverb.com",         300],
+    ["ls-vk",     "Vintage King",       550],
+    ["ls-ebay",   "eBay Sold Listings", 750],
+  ];
+  liveIds.forEach(([id, name, delay]) => {
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el && el.textContent.startsWith("⟳")) {
+        el.textContent = `✓ ${name}`;
+        el.style.color = "#15803d";
+      }
+    }, delay);
+  });
 }
 
 function renderSourceBadge() {
   const badge = document.getElementById("source-badge");
   if (!badge) return;
-  if (S.dataSource === 'reverb_api') {
-    badge.textContent = t('source.reverb_api');
-    badge.style.display = "inline-block";
+  if (S.dataSource === 'multi_api' || S.dataSource === 'reverb_api') {
+    const pf  = S.apiPlatforms || [];
+    const lbl = pf.length > 0
+      ? `LIVE · ${pf.join(', ')}`
+      : 'LIVE';
+    badge.innerHTML = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;margin-right:5px;vertical-align:middle"></span>${lbl}`;
+    badge.style.display    = "inline-flex";
+    badge.style.alignItems = "center";
     badge.style.background = "#dbeafe";
-    badge.style.color = "#1d4ed8";
+    badge.style.color      = "#1d4ed8";
   } else if (S.dataSource === 'mock_db') {
-    badge.textContent = t('source.mock_db');
-    badge.style.display = "inline-block";
+    badge.textContent      = t('source.mock_db');
+    badge.style.display    = "inline-block";
     badge.style.background = "#fef3c7";
-    badge.style.color = "#92400e";
+    badge.style.color      = "#92400e";
   } else {
     badge.style.display = "none";
   }
