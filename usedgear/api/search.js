@@ -285,7 +285,7 @@ module.exports = async function handler(req, res) {
 
   try {
     // 全プラットフォームを並列検索（どれかが失敗しても続行）
-    const [reverbResults, ebayResults, rockonResults, vintagekingResults] = await Promise.all([
+    const [reverbResults, ebayResults, rockonResults, vintagekingResults, yahooResults] = await Promise.all([
       reverbKey
         ? searchReverb(query, reverbKey).catch(e => {
             console.error('[Reverb] error:', e.message); return [];
@@ -304,6 +304,10 @@ module.exports = async function handler(req, res) {
       scrapeInternal(`/api/scrape-vintageking?q=${encodeURIComponent(query)}`, req).catch(e => {
         console.error('[VintageKing] error:', e.message); return [];
       }),
+      // Yahoo!オークション スクレイピング（内部 API 呼び出し）
+      scrapeInternal(`/api/scrape-yahooauctions?q=${encodeURIComponent(query)}`, req).catch(e => {
+        console.error('[YahooAuctions] error:', e.message); return [];
+      }),
     ]);
 
     // 全プラットフォームの結果を結合し、関連性フィルターを適用
@@ -312,16 +316,18 @@ module.exports = async function handler(req, res) {
       ...ebayResults,
       ...rockonResults,
       ...vintagekingResults,
+      ...yahooResults,
     ].filter(l => isRelevantTitle(l.title, query));
 
     // 日付降順でソート
     listings.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const platformsSearched = [
-      ...(reverbKey            ? ['Reverb']       : []),
-      ...(ebayAppId            ? ['eBay']          : []),
-      ...(rockonResults.length > 0  ? ['Rock oN']      : []),
+      ...(reverbKey                    ? ['Reverb']       : []),
+      ...(ebayAppId                    ? ['eBay']          : []),
+      ...(rockonResults.length > 0     ? ['Rock oN']       : []),
       ...(vintagekingResults.length > 0 ? ['Vintage King'] : []),
+      ...(yahooResults.length > 0      ? ['ヤフオク']      : []),
     ];
 
     return res.status(200).json({

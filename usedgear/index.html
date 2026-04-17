@@ -1760,12 +1760,12 @@ function changeTrendDays(days) {
 
 function animateLoading() {
   document.getElementById("loading-query-label").textContent = t('loading.fetching', S.query);
-  // v1.0: Reverb / eBay / Vintage King が LIVE API
+  // v1.0: Reverb / eBay / Vintage King / ヤフオク！ が LIVE API
   const platforms = [
     ["ls-ebay",     "eBay Sold Listings",                                        true ],
     ["ls-reverb",   "Reverb.com",                                                true ],
     ["ls-mercari",  "メルカリ",                                                   false],
-    ["ls-yahoo",    "ヤフオク！",                                                 false],
+    ["ls-yahoo",    "ヤフオク！",                                                 true ],
     ["ls-rockon",   "Rock oN Company",                                           false],
     ["ls-vk",       "Vintage King",                                              true ],
     ["ls-sh",       "サウンドハウス",                                             false],
@@ -1784,8 +1784,9 @@ function animateLoading() {
   // LIVE プラットフォームを順番に「完了」アニメーション
   const liveIds = [
     ["ls-reverb", "Reverb.com",         300],
-    ["ls-vk",     "Vintage King",       550],
-    ["ls-ebay",   "eBay Sold Listings", 750],
+    ["ls-vk",     "Vintage King",       500],
+    ["ls-yahoo",  "ヤフオク！",          650],
+    ["ls-ebay",   "eBay Sold Listings", 820],
   ];
   liveIds.forEach(([id, name, delay]) => {
     setTimeout(() => {

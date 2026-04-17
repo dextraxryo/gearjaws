@@ -7,11 +7,15 @@
   ],
   "functions": {
     "api/search.js": {
-      "maxDuration": 10,
+      "maxDuration": 15,
       "memory": 256
     },
     "api/cron-collect.js": {
       "maxDuration": 60,
+      "memory": 256
+    },
+    "api/scrape-yahooauctions.js": {
+      "maxDuration": 12,
       "memory": 256
     }
   },
