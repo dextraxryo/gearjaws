@@ -558,7 +558,7 @@
       <!-- Stats cards -->
       <div id="stats-row" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px"></div>
 
-      <!-- Price Charts: 価格分布 / ローソク足 -->
+      <!-- Price Charts: 価格分布 / 時系列散布図 -->
       <div id="price-trend-card" style="display:none;margin-bottom:14px">
         <div class="card" style="padding:16px 18px">
 
@@ -1493,8 +1493,8 @@ async function doSearch() {
   const chartCard = document.getElementById('price-trend-card');
   if (chartCard && data.length > 0) chartCard.style.display = 'block';
 
-  // ローソク足用の価格履歴を非同期ロード（Session F）
-  loadPriceHistory(q, S.trendDays || 60);
+  // 時系列タブが開いている場合は散布図を描画
+  if (_activeChartTab === 'scatter') renderScatterChart();
 }
 
 // ── 検索ログ記録（Supabase / v0.3 Session C）──────────────────
@@ -1513,7 +1513,7 @@ function logSearch(query, resultCount, dataSource) {
 }
 
 // ══════════════════════════════════════════════════════════
-// 価格チャート（Session F+）: ヒストグラム + ローソク足
+// 価格チャート（Session F+）: ヒストグラム + 時系列散布図
 // ══════════════════════════════════════════════════════════
 
 let _histChart    = null;   // Chart.js bar（価格分布）
