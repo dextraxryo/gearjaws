@@ -806,6 +806,196 @@ function ago(days) {
   return d.toISOString().slice(0,10);
 }
 
+// ═══════════════════════════════════════════
+// GEAR MASTER DB（機材タクソノミー）v1.0
+// セクション12: canonical_id / aliases / exclude_keywords / variants
+// ═══════════════════════════════════════════
+const GEAR_MASTER = [
+  {
+    canonical_id:   "neve_1073",
+    canonical_name: "Neve 1073",
+    brand:          "Neve",
+    category:       "preamp",
+    subcategory:    null,
+    variants: [
+      { id: "neve_1073_original", label: "オリジナル (1970s)",    year_range: [1970, 1985] },
+      { id: "neve_1073lb",        label: "1073LB (500系)",        year_range: [2010, null] },
+      { id: "neve_1073spx",       label: "1073SPX",               year_range: [2009, null] },
+      { id: "neve_1073dpx",       label: "1073DPX (デュアル)",    year_range: [2011, null] },
+      { id: "neve_1073n",         label: "1073N (現行再生産)",    year_range: [2015, null] },
+    ],
+    aliases: [
+      "neve 1073", "neve1073", "neve-1073", "neve 1073lb", "neve 1073spx",
+      "neve 1073dpx", "neve 1073n", "neve 1073dpa", "1073 preamp", "1073 pre",
+      "ニーブ1073", "ニーブ 1073", "neve mic pre", "neve channel strip",
+    ],
+    exclude_keywords: [
+      "clone", "style", "inspired", "diy", "kit", "replica", "type",
+      "bae 1073", "bae1073", "warm audio wa73", "wa73", "chandler", "api 1073",
+    ],
+    price_unit: "per_channel",
+  },
+  {
+    canonical_id:   "neumann_u87",
+    canonical_name: "Neumann U87",
+    brand:          "Neumann",
+    category:       "microphone",
+    subcategory:    "condenser",
+    variants: [
+      { id: "neumann_u87_ai",        label: "U87 Ai (現行品)",       year_range: [1986, null] },
+      { id: "neumann_u87_vintage",   label: "U87 Vintage (旧型)",    year_range: [1967, 1985] },
+      { id: "neumann_u87_ai_black",  label: "U87 Ai Black Edition",  year_range: [2015, null] },
+    ],
+    aliases: [
+      "neumann u87", "neumann u87ai", "neumann u87 ai", "u87 ai", "u87ai",
+      "u87 mic", "u87 microphone", "neumann u-87", "u-87 ai",
+      "ノイマンu87", "ノイマン u87", "ノイマン",
+    ],
+    exclude_keywords: [
+      "clone", "style", "inspired", "diy", "kit", "type", "replica",
+      "capsule only", "capsule mod", "mod kit", "u87 fet",
+    ],
+    price_unit: "per_unit",
+  },
+  {
+    canonical_id:   "ua_1176",
+    canonical_name: "UA 1176",
+    brand:          "Universal Audio",
+    category:       "compressor",
+    subcategory:    "vca",
+    variants: [
+      { id: "ua_1176_rev_a",      label: "Rev A (Blackface, 1967)",  year_range: [1967, 1968] },
+      { id: "ua_1176_rev_b_d",    label: "Rev B-D (Blackface)",      year_range: [1968, 1970] },
+      { id: "ua_1176_ln",         label: "1176LN (Rev E/F)",         year_range: [1970, 1999] },
+      { id: "ua_1176_ae",         label: "1176AE Anniversary",       year_range: [2009, null]  },
+      { id: "ua_1176_classic",    label: "1176 Classic (現行)",      year_range: [2000, null]  },
+    ],
+    aliases: [
+      "ua 1176", "1176", "1176ln", "1176 ln", "ua1176", "ua-1176",
+      "universal audio 1176", "universal audio 1176ln", "1176 compressor",
+      "1176 limiter", "1176 rev a", "1176 blackface", "1176 silverface",
+      "ユニバーサルオーディオ 1176", "ua1176ln",
+    ],
+    exclude_keywords: [
+      "clone", "style", "inspired", "diy", "kit", "type", "replica",
+      "clandestine", "lindell", "warm audio", "wa76", "plugin", "software", "native",
+    ],
+    price_unit: "per_unit",
+  },
+  {
+    canonical_id:   "ssl_gbus",
+    canonical_name: "SSL G-Bus",
+    brand:          "Solid State Logic",
+    category:       "compressor",
+    subcategory:    "vca",
+    variants: [
+      { id: "ssl_gbus_original",  label: "オリジナル SL4000G+ モジュール", year_range: [1980, 2000] },
+      { id: "ssl_gbus_500",       label: "G-Bus 500シリーズ",              year_range: [2012, null]  },
+      { id: "ssl_busplus",        label: "SSL Bus+",                       year_range: [2021, null]  },
+    ],
+    aliases: [
+      "ssl g-bus", "ssl gbus", "ssl g bus", "g-bus compressor", "ssl bus compressor",
+      "solid state logic g bus", "ssl bus+", "ssl bus plus",
+      "ssl g-series compressor", "ssl g series compressor", "ssl 4000 g bus",
+      "エスエスエル gバス", "ssl gバス",
+    ],
+    exclude_keywords: [
+      "clone", "style", "inspired", "diy", "kit", "type", "replica",
+      "jjp", "shadow hills", "plugin", "software",
+    ],
+    price_unit: "per_unit",
+  },
+  {
+    canonical_id:   "api_2500",
+    canonical_name: "API 2500",
+    brand:          "API",
+    category:       "compressor",
+    subcategory:    "vca",
+    variants: [
+      { id: "api_2500_original", label: "2500 オリジナル",  year_range: [2002, 2020] },
+      { id: "api_2500plus",      label: "2500+ (改良版)",   year_range: [2020, null]  },
+    ],
+    aliases: [
+      "api 2500", "api2500", "api-2500", "api 2500+", "api 2500 plus",
+      "api stereo compressor", "api bus compressor", "エーピーアイ 2500",
+    ],
+    exclude_keywords: [
+      "clone", "style", "inspired", "diy", "kit", "type", "replica",
+      "plugin", "software", "native",
+    ],
+    price_unit: "per_unit",
+  },
+  {
+    canonical_id:   "eventide_h3000",
+    canonical_name: "Eventide H3000",
+    brand:          "Eventide",
+    category:       "fx",
+    subcategory:    "harmonizer",
+    variants: [
+      { id: "eventide_h3000d",   label: "H3000D",          year_range: [1986, 1995] },
+      { id: "eventide_h3000se",  label: "H3000 S/E",       year_range: [1988, 1995] },
+      { id: "eventide_h3000b",   label: "H3000B (Bank)",   year_range: [1988, 1995] },
+      { id: "eventide_h3000dsx", label: "H3000 D/SX",      year_range: [1990, 1999] },
+    ],
+    aliases: [
+      "eventide h3000", "h3000", "eventide h-3000", "h3000 harmonizer",
+      "h3000 ultra-harmonizer", "eventide ultra harmonizer",
+      "eventide h3000d", "eventide h3000b", "eventide h3000dsx",
+      "イベンタイド h3000", "イベンタイドh3000",
+    ],
+    exclude_keywords: [
+      "clone", "style", "inspired", "diy", "kit", "type", "replica",
+      "plugin", "software", "native", "h3000 plug-in", "h3000 plugin",
+    ],
+    price_unit: "per_unit",
+  },
+  {
+    canonical_id:   "roland_tr909",
+    canonical_name: "Roland TR-909",
+    brand:          "Roland",
+    category:       "drum_machine",
+    subcategory:    null,
+    variants: [
+      { id: "roland_tr909_original", label: "TR-909 オリジナル (1983)", year_range: [1983, 1984] },
+    ],
+    aliases: [
+      "roland tr-909", "roland tr909", "tr-909", "tr909", "roland 909",
+      "tr-909 rhythm composer", "ローランド tr-909", "ローランド tr909",
+      "ローランド 909",
+    ],
+    exclude_keywords: [
+      "clone", "style", "inspired", "diy", "kit", "type", "replica",
+      "plugin", "software", "native", "behringer rd-9", "rd-9", "rd9",
+      "xlr8r", "circuit bent",
+    ],
+    price_unit: "per_unit",
+  },
+  {
+    canonical_id:   "roland_tr1000",
+    canonical_name: "Roland TR-1000",
+    brand:          "Roland",
+    category:       "drum_machine",
+    subcategory:    null,
+    variants: [
+      { id: "roland_tr1000", label: "TR-1000", year_range: [1988, 1992] },
+    ],
+    aliases: [
+      "roland tr-1000", "roland tr1000", "tr-1000", "tr1000", "roland 1000",
+      "ローランド tr-1000", "ローランド tr1000",
+    ],
+    exclude_keywords: [
+      "clone", "style", "inspired", "diy", "kit", "type", "replica",
+      "plugin", "software",
+    ],
+    price_unit: "per_unit",
+  },
+];
+
+// GEAR_MASTER: canonical_name.toLowerCase() → gear オブジェクトのマップ（高速参照用）
+const GEAR_MASTER_MAP = Object.fromEntries(
+  GEAR_MASTER.map(g => [g.canonical_name.toLowerCase(), g])
+);
+
 const DB = {
   "neve 1073": [
     { platform:"eBay",          title:"Neve 1073 Original Vintage Module (1970s) — Full Recap, Excellent",           price:3800, currency:"USD", priceJPY:570000,  condition:"良好",    date:ago(5),  status:"sold",    url:"https://www.ebay.com" },
@@ -1419,7 +1609,8 @@ let S = {
   dataSource: 'none', // 'multi_api' | 'mock_db' | 'no_match' | 'none'
   apiPlatforms: [], // 実際に検索したプラットフォーム一覧
   trendDays: 60,   // 価格トレンド表示期間（Session F）
-  priceFilter: null, // { lo, hi } | null  ヒストグラムクリックで設定
+  priceFilter: null,      // { lo, hi } | null  ヒストグラムクリックで設定
+  activeCanonical: null,  // GEAR_MASTER エントリ | null（現在の検索に対応するマスター）
 };
 
 // ═══════════════════════════════════════════
@@ -1460,10 +1651,41 @@ function quickSearch(q) {
   doSearch();
 }
 
-// ── DB キー検索ヘルパー ────────────────────────────
-function findDBKey(q) {
+// ── GEAR_MASTER: クエリ → canonical エントリ解決 ──────────
+function resolveCanonical(q) {
   const nq = q.toLowerCase().replace(/　/g,' ').replace(/\s+/g,' ').trim();
-  const nqNS = nq.replace(/\s/g,''); // no-space variant: "neve1073"
+  const nqNS = nq.replace(/\s/g,'');
+  for (const gear of GEAR_MASTER) {
+    for (const alias of gear.aliases) {
+      const na   = alias.toLowerCase().replace(/\s+/g,' ').trim();
+      const naNS = na.replace(/\s/g,'');
+      if (nq === na || nq.includes(na) || na.includes(nq) ||
+          nqNS === naNS || nqNS.includes(naNS) || naNS.includes(nqNS)) {
+        return gear;
+      }
+    }
+    // canonical_name でも直接照合
+    const cn   = gear.canonical_name.toLowerCase();
+    const cnNS = cn.replace(/\s/g,'');
+    if (nq === cn || nq.includes(cn) || cn.includes(nq) ||
+        nqNS === cnNS || nqNS.includes(cnNS) || cnNS.includes(nqNS)) {
+      return gear;
+    }
+  }
+  return null;
+}
+
+// ── DB キー検索ヘルパー（GEAR_MASTER aliases 優先） ──────────
+function findDBKey(q) {
+  // まず GEAR_MASTER で解決を試みる
+  const canonical = resolveCanonical(q);
+  if (canonical) {
+    const dbKey = canonical.canonical_name.toLowerCase();
+    if (DB[dbKey]) return dbKey;
+  }
+  // フォールバック: 従来のファジーマッチ
+  const nq   = q.toLowerCase().replace(/　/g,' ').replace(/\s+/g,' ').trim();
+  const nqNS = nq.replace(/\s/g,'');
   return Object.keys(DB).find(k => {
     const kNS = k.replace(/\s/g,'');
     return nq.includes(k) || k.includes(nq) || nqNS.includes(kNS) || kNS.includes(nqNS);
@@ -1478,7 +1700,8 @@ async function doSearch() {
   if(!q) return;
 
   S.query = q;
-  S.priceFilter = null;   // 新規検索のたびに価格フィルタをリセット
+  S.priceFilter    = null;             // 新規検索のたびに価格フィルタをリセット
+  S.activeCanonical = resolveCanonical(q); // GEAR_MASTER でクエリを解決
   saveHistory(q);
   showPage("loading");
   animateLoading();
@@ -2044,6 +2267,16 @@ function applyFilters() {
     }
     return true;
   });
+
+  // GEAR_MASTER の exclude_keywords でノイズ除去（クローン・DIY・ソフト等を除外）
+  if (S.activeCanonical && S.activeCanonical.exclude_keywords.length > 0) {
+    const exKeys = S.activeCanonical.exclude_keywords.map(k => k.toLowerCase());
+    S.filtered = S.filtered.filter(r => {
+      const titleLow = (r.title || '').toLowerCase();
+      return !exKeys.some(ek => titleLow.includes(ek));
+    });
+  }
+
   applySortAndRender();
   renderHistogram(); // フィルター変更時にヒストグラムを更新
 }
