@@ -14,7 +14,6 @@
 <meta name="robots" content="index, follow">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -570,17 +569,13 @@
                 style="padding:6px 14px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.15s;display:flex;align-items:center;gap:5px">
                 <i class="fas fa-chart-bar"></i> 価格分布
               </button>
-              <button onclick="switchChartTab('candle')" id="ctab-candle"
+              <button onclick="switchChartTab('scatter')" id="ctab-candle"
                 style="padding:6px 14px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:var(--surface2);color:var(--tx2);transition:all 0.15s;display:flex;align-items:center;gap:5px">
-                <i class="fas fa-chart-candlestick"></i> ローソク足
+                <i class="fas fa-circle-dot"></i> 時系列
               </button>
             </div>
-            <!-- ローソク足タブのみ表示する日数ボタン -->
-            <div id="trend-days-ctrl" style="display:none;gap:6px">
-              <button onclick="changeTrendDays(30)" id="tbtn-30" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border-md);background:var(--surface2);color:var(--tx2);cursor:pointer">30日</button>
-              <button onclick="changeTrendDays(60)" id="tbtn-60" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer">60日</button>
-              <button onclick="changeTrendDays(90)" id="tbtn-90" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border-md);background:var(--surface2);color:var(--tx2);cursor:pointer">90日</button>
-            </div>
+            <!-- 時系列タブのコントロール（将来拡張用・現在は非表示） -->
+            <div id="trend-days-ctrl" style="display:none;gap:6px"></div>
           </div>
 
           <!-- 価格分布ペイン -->
@@ -594,12 +589,14 @@
             </div>
           </div>
 
-          <!-- ローソク足ペイン -->
+          <!-- 時系列散布図ペイン -->
           <div id="chart-candle-pane" style="display:none">
-            <div id="candle-container" style="height:220px;border-radius:6px;overflow:hidden"></div>
-            <div id="candle-no-data" style="display:none;padding:32px 0;text-align:center;color:var(--tx3);font-size:13px">
-              <i class="fas fa-hourglass-half" style="font-size:22px;margin-bottom:10px;display:block;opacity:0.5"></i>
-              <span id="candle-no-data-text">価格データを収集中です。明日以降に自動更新されます。</span>
+            <div id="scatter-chart-wrap" style="position:relative;height:220px">
+              <canvas id="scatter-chart"></canvas>
+            </div>
+            <div id="scatter-no-data" style="display:none;padding:28px 0;text-align:center;color:var(--tx3);font-size:13px">
+              <i class="fas fa-info-circle" style="font-size:20px;margin-bottom:8px;display:block;opacity:0.4"></i>
+              価格データのある検索結果がありません
             </div>
           </div>
 
@@ -1373,6 +1370,7 @@ let S = {
   dataSource: 'none', // 'multi_api' | 'mock_db' | 'no_match' | 'none'
   apiPlatforms: [], // 実際に検索したプラットフォーム一覧
   trendDays: 60,   // 価格トレンド表示期間（Session F）
+  priceFilter: null, // { lo, hi } | null  ヒストグラムクリックで設定
 };
 
 // ═══════════════════════════════════════════
@@ -1519,37 +1517,27 @@ function logSearch(query, resultCount, dataSource) {
 // ══════════════════════════════════════════════════════════
 
 let _histChart    = null;   // Chart.js bar（価格分布）
-let _candleChart  = null;   // Lightweight Charts（ローソク足）
-let _candleHistory = [];    // 価格履歴データ（キャッシュ）
-let _activeChartTab = 'hist'; // 現在のタブ
+let _activeChartTab = 'hist'; // 現在のタブ（'hist' | 'scatter'）
 
 // ── タブ切り替え ───────────────────────────────────────────
 function switchChartTab(tab) {
   _activeChartTab = tab;
   const histPane   = document.getElementById('chart-hist-pane');
-  const candlePane = document.getElementById('chart-candle-pane');
-  const daysCtrl   = document.getElementById('trend-days-ctrl');
+  const scatterPane = document.getElementById('chart-candle-pane');
   const tabHist    = document.getElementById('ctab-hist');
-  const tabCandle  = document.getElementById('ctab-candle');
+  const tabScatter = document.getElementById('ctab-candle');
 
   if (tab === 'hist') {
-    histPane.style.display   = 'block';
-    candlePane.style.display = 'none';
-    daysCtrl.style.display   = 'none';
-    tabHist.style.background   = 'var(--accent)'; tabHist.style.color   = '#fff';
-    tabCandle.style.background = 'var(--surface2)'; tabCandle.style.color = 'var(--tx2)';
+    histPane.style.display    = 'block';
+    scatterPane.style.display = 'none';
+    tabHist.style.background    = 'var(--accent)'; tabHist.style.color    = '#fff';
+    tabScatter.style.background = 'var(--surface2)'; tabScatter.style.color = 'var(--tx2)';
   } else {
-    histPane.style.display   = 'none';
-    candlePane.style.display = 'block';
-    daysCtrl.style.display   = 'flex';
-    tabCandle.style.background = 'var(--accent)'; tabCandle.style.color   = '#fff';
-    tabHist.style.background   = 'var(--surface2)'; tabHist.style.color = 'var(--tx2)';
-    // 初回タブ切り替え時にチャートを描画
-    if (_candleHistory.length > 0) {
-      renderCandlestick(_candleHistory);
-    } else if (S.query) {
-      loadPriceHistory(S.query, S.trendDays || 60);
-    }
+    histPane.style.display    = 'none';
+    scatterPane.style.display = 'block';
+    tabScatter.style.background = 'var(--accent)'; tabScatter.style.color   = '#fff';
+    tabHist.style.background    = 'var(--surface2)'; tabHist.style.color = 'var(--tx2)';
+    renderScatterChart();
   }
 }
 
@@ -1606,6 +1594,27 @@ function renderHistogram() {
 
   if (_histChart) { _histChart.destroy(); _histChart = null; }
 
+  // ビンの境界値を保存（クリックフィルター用）
+  const binBounds = Array.from({ length: binCount }, (_, i) => ({
+    lo: lo + i * binSize,
+    hi: lo + (i + 1) * binSize,
+  }));
+
+  // アクティブビンのインデックスを特定（既存 priceFilter に対応）
+  function getActiveBinIdx() {
+    if (!S.priceFilter) return -1;
+    return binBounds.findIndex(b =>
+      Math.abs(b.lo - S.priceFilter.lo) < 1 && Math.abs(b.hi - S.priceFilter.hi) < 1
+    );
+  }
+
+  function buildBarColors(activeIdx) {
+    return bins.map((_, i) => {
+      if (activeIdx === -1) return 'rgba(37,99,235,0.55)';
+      return i === activeIdx ? 'rgba(37,99,235,0.9)' : 'rgba(37,99,235,0.2)';
+    });
+  }
+
   _histChart = new Chart(canvas, {
     type: 'bar',
     data: {
@@ -1613,7 +1622,7 @@ function renderHistogram() {
       datasets: [{
         label: LANG === 'en' ? 'Count' : '件数',
         data: bins,
-        backgroundColor: 'rgba(37,99,235,0.55)',
+        backgroundColor: buildBarColors(getActiveBinIdx()),
         borderColor:     'rgba(37,99,235,0.8)',
         borderWidth: 1,
         borderRadius: 3,
@@ -1623,6 +1632,23 @@ function renderHistogram() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      cursor: 'pointer',
+      onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const idx = elements[0].index;
+        const b   = binBounds[idx];
+        // 同じビンを再クリックで解除
+        if (S.priceFilter && Math.abs(S.priceFilter.lo - b.lo) < 1) {
+          S.priceFilter = null;
+        } else {
+          S.priceFilter = { lo: b.lo, hi: b.hi };
+        }
+        applyFilters();
+        // バーの色を即時更新
+        const ds = _histChart.data.datasets[0];
+        ds.backgroundColor = buildBarColors(getActiveBinIdx());
+        _histChart.update('none');
+      },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -1630,11 +1656,13 @@ function renderHistogram() {
             title: ([ctx]) => {
               const bLo = lo + ctx.dataIndex * binSize;
               const bHi = lo + (ctx.dataIndex + 1) * binSize;
+              const active = S.priceFilter && Math.abs(S.priceFilter.lo - bLo) < 1;
+              const suffix = active ? (LANG === 'en' ? ' [filtered]' : ' ✓絞込中') : '';
               return S.currency === 'USD'
-                ? `$${Math.round(bLo).toLocaleString()} – $${Math.round(bHi).toLocaleString()}`
-                : `¥${Math.round(bLo).toLocaleString()} – ¥${Math.round(bHi).toLocaleString()}`;
+                ? `$${Math.round(bLo).toLocaleString()} – $${Math.round(bHi).toLocaleString()}${suffix}`
+                : `¥${Math.round(bLo).toLocaleString()} – ¥${Math.round(bHi).toLocaleString()}${suffix}`;
             },
-            label: ctx => `${ctx.parsed.y}件`,
+            label: ctx => `${ctx.parsed.y}件${S.priceFilter && Math.abs((lo + ctx.dataIndex * binSize) - S.priceFilter.lo) < 1 ? ' ← クリックで解除' : ''}`,
           },
         },
       },
@@ -1653,109 +1681,133 @@ function renderHistogram() {
   });
 }
 
-// ── ローソク足チャート（Lightweight Charts）──────────────────
-function renderCandlestick(history) {
-  const container = document.getElementById('candle-container');
-  const noData    = document.getElementById('candle-no-data');
-  if (!container) return;
+// ── 時系列散布図（Chart.js scatter）─────────────────────────
+let _scatterChart = null;
 
-  // 既存インスタンスを削除
-  if (_candleChart) { _candleChart.remove(); _candleChart = null; }
+function renderScatterChart() {
+  const wrap   = document.getElementById('scatter-chart-wrap');
+  const noData = document.getElementById('scatter-no-data');
+  const canvas = document.getElementById('scatter-chart');
+  if (!canvas) return;
 
-  const validData = history.filter(d => d.min_price_jpy && d.max_price_jpy);
-  if (validData.length === 0) {
-    container.style.display = 'none';
+  // S.filtered から日付 × 価格のデータ点を作成
+  const points = S.filtered
+    .map(r => {
+      const ts = r.date ? new Date(r.date).getTime() : null;
+      const price = S.currency === 'USD'
+        ? (r.priceUSD || Math.round((r.priceJPY || 0) / USD_RATE))
+        : (r.priceJPY || 0);
+      return ts && price > 0 ? { x: ts, y: price, r: r } : null;
+    })
+    .filter(Boolean);
+
+  if (points.length < 2) {
+    if (wrap)   wrap.style.display   = 'none';
     if (noData) noData.style.display = 'block';
     return;
   }
-  container.style.display = 'block';
+  if (wrap)   wrap.style.display   = 'block';
   if (noData) noData.style.display = 'none';
 
-  _candleChart = LightweightCharts.createChart(container, {
-    width:  container.clientWidth,
-    height: 220,
-    layout: {
-      background: { type: 'solid', color: '#ffffff' },
-      textColor:  '#4a4540',
-      fontSize:   11,
+  if (_scatterChart) { _scatterChart.destroy(); _scatterChart = null; }
+
+  // プラットフォーム別にデータセットを分ける（Chart.js scatter）
+  const platformGroups = {};
+  points.forEach(p => {
+    const pl = p.r.platform;
+    if (!platformGroups[pl]) platformGroups[pl] = [];
+    platformGroups[pl].push({ x: p.x, y: p.y });
+  });
+
+  const datasets = Object.entries(platformGroups).map(([pl, pts]) => {
+    const cfg = PC[pl] || { color: '#888' };
+    return {
+      label: pl,
+      data: pts,
+      backgroundColor: cfg.color + 'cc',
+      borderColor:     cfg.color,
+      borderWidth: 1,
+      pointRadius: 5,
+      pointHoverRadius: 7,
+    };
+  });
+
+  // 最小二乗回帰トレンドライン
+  const allX = points.map(p => p.x);
+  const allY = points.map(p => p.y);
+  const n    = allX.length;
+  const mX   = allX.reduce((a,v)=>a+v,0)/n;
+  const mY   = allY.reduce((a,v)=>a+v,0)/n;
+  const ssXY = allX.reduce((a,v,i)=>a+(v-mX)*(allY[i]-mY),0);
+  const ssXX = allX.reduce((a,v)=>a+(v-mX)*(v-mX),0);
+  const slope = ssXX ? ssXY/ssXX : 0;
+  const inter = mY - slope * mX;
+  const xMin  = Math.min(...allX);
+  const xMax  = Math.max(...allX);
+  const trendColor = slope > 0 ? 'rgba(220,38,38,0.55)' : slope < 0 ? 'rgba(21,128,61,0.55)' : 'rgba(140,136,128,0.4)';
+  datasets.push({
+    label: LANG === 'en' ? 'Trend' : 'トレンド',
+    data: [{ x: xMin, y: slope * xMin + inter }, { x: xMax, y: slope * xMax + inter }],
+    type: 'line',
+    borderColor: trendColor,
+    borderWidth: 1.5,
+    borderDash: [5, 4],
+    pointRadius: 0,
+    tension: 0,
+    fill: false,
+  });
+
+  const fmtY = v => S.currency === 'USD'
+    ? `$${Math.round(v).toLocaleString()}`
+    : `¥${Math.round(v).toLocaleString()}`;
+
+  _scatterChart = new Chart(canvas, {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: Object.keys(platformGroups).length <= 6, labels: { font: { size: 10 }, boxWidth: 10, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            title: ([ctx]) => {
+              const d = new Date(ctx.raw.x);
+              return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+            },
+            label: ctx => ctx.dataset.label === (LANG==='en'?'Trend':'トレンド')
+              ? null
+              : `${ctx.dataset.label}：${fmtY(ctx.raw.y)}`,
+          },
+          filter: item => item.dataset.label !== (LANG==='en'?'Trend':'トレンド'),
+        },
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          ticks: {
+            font: { size: 10 },
+            callback: v => {
+              const d = new Date(v);
+              return `${d.getMonth()+1}/${d.getDate()}`;
+            },
+            maxTicksLimit: 6,
+          },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+        },
+        y: {
+          ticks: {
+            font: { size: 10 },
+            callback: v => S.currency === 'USD'
+              ? (v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`)
+              : (v >= 10000 ? `¥${Math.round(v/10000)}万` : `¥${v}`),
+            maxTicksLimit: 5,
+          },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+        },
+      },
     },
-    grid: {
-      vertLines: { color: 'rgba(0,0,0,0.04)' },
-      horzLines: { color: 'rgba(0,0,0,0.04)' },
-    },
-    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    rightPriceScale: { borderColor: 'rgba(0,0,0,0.08)' },
-    timeScale:       { borderColor: 'rgba(0,0,0,0.08)', timeVisible: false },
-    handleScroll:    false,
-    handleScale:     false,
   });
-
-  const series = _candleChart.addCandlestickSeries({
-    upColor:        '#16a34a',
-    downColor:      '#dc2626',
-    borderUpColor:  '#16a34a',
-    borderDownColor:'#dc2626',
-    wickUpColor:    '#16a34a',
-    wickDownColor:  '#dc2626',
-  });
-
-  series.setData(validData.map(d => ({
-    time:  d.snapshot_date,
-    open:  d.avg_price_jpy,
-    high:  d.max_price_jpy,
-    low:   d.min_price_jpy,
-    close: d.med_price_jpy || d.avg_price_jpy,
-  })));
-
-  series.priceFormatter = price =>
-    `¥${Math.round(price / 10000)}万`;
-
-  _candleChart.timeScale().fitContent();
-
-  // レスポンシブ: ウィンドウリサイズで幅を更新
-  const resizeObs = new ResizeObserver(() => {
-    if (_candleChart) _candleChart.applyOptions({ width: container.clientWidth });
-  });
-  resizeObs.observe(container);
-}
-
-// ── 価格履歴ロード（ローソク足用）────────────────────────────
-async function loadPriceHistory(query, days) {
-  try {
-    const res  = await fetch(`/api/price-history?q=${encodeURIComponent(query)}&days=${days}&platform=all`);
-    const json = await res.json();
-    _candleHistory = json.history || [];
-
-    // ローソク足タブが開いている場合のみ描画
-    if (_activeChartTab === 'candle') {
-      if (_candleHistory.length > 0) {
-        renderCandlestick(_candleHistory);
-      } else {
-        const noData = document.getElementById('candle-no-data');
-        const txt    = document.getElementById('candle-no-data-text');
-        const cont   = document.getElementById('candle-container');
-        if (cont)   cont.style.display   = 'none';
-        if (noData) noData.style.display = 'block';
-        if (txt)    txt.textContent = LANG === 'en'
-          ? 'Collecting price data. Will update automatically tomorrow.'
-          : '価格データを収集中です。明日以降に自動更新されます。';
-      }
-    }
-  } catch (_) { /* ローソク足データ取得失敗は無視 */ }
-}
-
-// ── 日数ボタン（ローソク足）──────────────────────────────────
-function changeTrendDays(days) {
-  S.trendDays = days;
-  [30, 60, 90].forEach(d => {
-    const btn = document.getElementById(`tbtn-${d}`);
-    if (!btn) return;
-    btn.style.background  = d === days ? 'var(--accent)'   : 'var(--surface2)';
-    btn.style.color       = d === days ? '#fff'             : 'var(--tx2)';
-    btn.style.borderColor = d === days ? 'var(--accent)'   : 'var(--border-md)';
-  });
-  _candleHistory = []; // キャッシュクリア
-  if (S.query) loadPriceHistory(S.query, days);
 }
 
 function animateLoading() {
@@ -1910,6 +1962,11 @@ function applyFilters() {
     if(minP!==null && jpy<minP) return false;
     if(maxP!==null && jpy>maxP) return false;
     if(cutoff && new Date(r.date)<cutoff) return false;
+    // ヒストグラムクリック絞り込み
+    if(S.priceFilter) {
+      const pv = S.currency === 'USD' ? (r.priceUSD || Math.round(jpy/USD_RATE)) : jpy;
+      if(pv < S.priceFilter.lo || pv > S.priceFilter.hi) return false;
+    }
     return true;
   });
   applySortAndRender();
