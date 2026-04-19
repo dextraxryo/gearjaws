@@ -110,6 +110,22 @@
   }
   .badge-sm { font-size: 10px; padding: 1px 7px; }
 
+  /* バリアントバッジ（行・モーダル共通ベース） */
+  .variant-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background: rgba(109, 40, 217, 0.07);
+    color: #6d28d9;
+    border: 1px solid rgba(109, 40, 217, 0.18);
+    white-space: nowrap;
+    margin-top: 4px;
+  }
+
   /* Stat cards */
   .stat-card {
     background: var(--surface);
@@ -995,6 +1011,67 @@ const GEAR_MASTER = [
 const GEAR_MASTER_MAP = Object.fromEntries(
   GEAR_MASTER.map(g => [g.canonical_name.toLowerCase(), g])
 );
+
+// ═══════════════════════════════════════════
+// VARIANT DETECT — T-05 バリアント識別ルール
+// canonical_id → [{id, label, patterns}]（配列順 = 優先度順）
+// ═══════════════════════════════════════════
+const VARIANT_DETECT = {
+  neve_1073: [
+    { id:"neve_1073lb",        label:"1073LB / 500系",        patterns:["1073lb","500 series","500series","500系","lunchbox"] },
+    { id:"neve_1073spx",       label:"1073SPX",                patterns:["1073spx","spx"] },
+    { id:"neve_1073dpx",       label:"1073DPX / DPA",         patterns:["1073dpx","1073dpa","dpx","dpa","dual"] },
+    { id:"neve_1073n",         label:"1073N (現行)",           patterns:["1073n ","1073n)","reissue","re-issue","new production","現行"] },
+    { id:"neve_1073_original", label:"Vintage (1970s)",        patterns:["vintage","オリジナル","1970s","1970","1971","1972","1973","1974","1975","1976","1977","1978","1979","1980"] },
+  ],
+  neumann_u87: [
+    { id:"neumann_u87_ai_black", label:"U87 Ai · Black Edition", patterns:["black edition","ブラック エディション"] },
+    { id:"neumann_u87_vintage",  label:"Vintage (旧型)",          patterns:["vintage","旧型","old type"] },
+    { id:"neumann_u87_ai",       label:"U87 Ai",                  patterns:["u87 ai","u87ai","u87-ai","u-87 ai"] },
+  ],
+  ua_1176: [
+    { id:"ua_1176_ae",      label:"Anniversary Edition",    patterns:["anniversary","1176ae","1176 ae"] },
+    { id:"ua_1176_rev_a",   label:"Rev A · Blackface",      patterns:["rev a","rev-a","blackface","black face"] },
+    { id:"ua_1176_rev_b_d", label:"Rev B–D · Blackface",    patterns:["rev b","rev c","rev d","rev-b","rev-c","rev-d"] },
+    { id:"ua_1176_ln",      label:"1176LN · Silverface",    patterns:["1176ln","1176 ln","rev e","rev f","rev-e","rev-f","silverface","silver face"] },
+  ],
+  ssl_gbus: [
+    { id:"ssl_busplus",       label:"SSL Bus+",              patterns:["bus+","bus plus","bus＋"] },
+    { id:"ssl_gbus_500",      label:"500シリーズ",            patterns:["500 series","500series","500系"] },
+    { id:"ssl_gbus_original", label:"SL4000G+ モジュール",   patterns:["sl4000","sl 4000","4000g","4000 g"] },
+  ],
+  api_2500: [
+    { id:"api_2500plus", label:"2500+", patterns:["2500+","2500 plus","2500plus"] },
+  ],
+  eventide_h3000: [
+    { id:"eventide_h3000dsx", label:"H3000 D/SX",          patterns:["d/sx","dsx","h3000 d/sx","h3000d/sx"] },
+    { id:"eventide_h3000b",   label:"H3000B (Bank)",        patterns:["h3000b","bank edition","b bank"] },
+    { id:"eventide_h3000se",  label:"H3000 S/E",            patterns:["h3000se","h3000 s/e","s/e","special edition","s/e edition"] },
+    { id:"eventide_h3000d",   label:"H3000D",               patterns:["h3000d","h3000 d ","h3000 d)"] },
+  ],
+  roland_tr909: [
+    { id:"roland_tr909_original", label:"TR-909 (1983)",    patterns:["tr-909","tr909"] },
+  ],
+  roland_tr1000: [
+    { id:"roland_tr1000", label:"TR-1000",                  patterns:["tr-1000","tr1000"] },
+  ],
+};
+
+// ── バリアント識別関数 ────────────────────────────────────────
+// タイトル文字列と canonical エントリを受け取り、
+// マッチしたバリアント { id, label } または null を返す
+function detectVariant(title, canonical) {
+  if (!canonical) return null;
+  const rules = VARIANT_DETECT[canonical.canonical_id];
+  if (!rules || !rules.length) return null;
+  const tl = (title || '').toLowerCase();
+  for (const rule of rules) {
+    if (rule.patterns.some(p => tl.includes(p))) {
+      return { id: rule.id, label: rule.label };
+    }
+  }
+  return null;
+}
 
 const DB = {
   "neve 1073": [
@@ -2390,12 +2467,19 @@ function rowHTML(r, globalIdx) {
   const title = r.title.length>46 ? r.title.slice(0,46)+"…" : r.title;
   const isSold = r.status==="sold";
 
+  // バリアント識別
+  const variant = detectVariant(r.title, S.activeCanonical);
+  const variantBadge = variant
+    ? `<div><span class="variant-badge"><i class="fas fa-code-branch" style="font-size:9px"></i>${variant.label}</span></div>`
+    : '';
+
   return `<tr class="result-row" onclick="openModal(${globalIdx})">
     <td style="padding:12px 14px">
       <span class="badge" style="background:${pc.bg};color:${pc.color}">${pc.icon} ${r.platform}</span>
     </td>
     <td style="padding:12px 14px;max-width:280px">
       <span style="font-size:13px;color:var(--tx1);font-weight:${isSold?'600':'400'}" title="${r.title}">${title}</span>
+      ${variantBadge}
     </td>
     <td style="padding:12px 14px;text-align:right;white-space:nowrap">
       ${priceStr}${priceSub}
@@ -2491,9 +2575,18 @@ function openModal(idx) {
   const cc = CC[r.condition]||{color:"#555"};
   const sc = SC[r.status]||{label:r.status,color:"#555"};
 
+  // バリアント識別（モーダル用）
+  const modalVariant = detectVariant(r.title, S.activeCanonical);
+  const modalVariantBadge = modalVariant
+    ? `<span class="badge variant-badge" style="font-size:12px;padding:4px 11px">
+         <i class="fas fa-code-branch" style="font-size:10px"></i>${modalVariant.label}
+       </span>`
+    : '';
+
   document.getElementById("modal-badges").innerHTML =
     `<span class="badge" style="background:${pc.bg};color:${pc.color};font-size:13px;padding:5px 12px">${pc.icon} ${r.platform}</span>
-     <span class="badge" style="background:${SC[r.status]?.bg||"#f3f4f6"};color:${sc.color};font-size:12px;padding:4px 10px">${t('status.'+r.status)||sc.label}</span>`;
+     <span class="badge" style="background:${SC[r.status]?.bg||"#f3f4f6"};color:${sc.color};font-size:12px;padding:4px 10px">${t('status.'+r.status)||sc.label}</span>
+     ${modalVariantBadge}`;
 
   document.getElementById("modal-title").textContent = r.title;
 
