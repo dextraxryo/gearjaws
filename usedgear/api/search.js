@@ -285,7 +285,7 @@ module.exports = async function handler(req, res) {
 
   try {
     // 全プラットフォームを並列検索（どれかが失敗しても続行）
-    const [reverbResults, ebayResults, rockonResults, vintagekingResults, yahooResults] = await Promise.all([
+    const [reverbResults, ebayResults, rockonResults, vintagekingResults, yahooResults, fivegResults] = await Promise.all([
       reverbKey
         ? searchReverb(query, reverbKey).catch(e => {
             console.error('[Reverb] error:', e.message); return [];
@@ -296,7 +296,7 @@ module.exports = async function handler(req, res) {
             console.error('[eBay] error:', e.message); return [];
           })
         : Promise.resolve([]),
-      // Rock oN スクレイピング（内部 API 呼び出し）
+      // Rock oN スクレイピング (store.miroc.co.jp)
       scrapeInternal(`/api/scrape-rockon?q=${encodeURIComponent(query)}`, req).catch(e => {
         console.error('[RockOn] error:', e.message); return [];
       }),
@@ -308,6 +308,10 @@ module.exports = async function handler(req, res) {
       scrapeInternal(`/api/scrape-yahooauctions?q=${encodeURIComponent(query)}`, req).catch(e => {
         console.error('[YahooAuctions] error:', e.message); return [];
       }),
+      // Five G Music Technology スクレイピング (fiveg.net)
+      scrapeInternal(`/api/scrape-fiveg?q=${encodeURIComponent(query)}`, req).catch(e => {
+        console.error('[FiveG] error:', e.message); return [];
+      }),
     ]);
 
     // 全プラットフォームの結果を結合し、関連性フィルターを適用
@@ -317,6 +321,7 @@ module.exports = async function handler(req, res) {
       ...rockonResults,
       ...vintagekingResults,
       ...yahooResults,
+      ...fivegResults,
     ].filter(l => isRelevantTitle(l.title, query));
 
     // 日付降順でソート
@@ -328,6 +333,7 @@ module.exports = async function handler(req, res) {
       ...(rockonResults.length > 0     ? ['Rock oN']       : []),
       ...(vintagekingResults.length > 0 ? ['Vintage King'] : []),
       ...(yahooResults.length > 0      ? ['ヤフオク']      : []),
+      ...(fivegResults.length > 0      ? ['Five G']        : []),
     ];
 
     return res.status(200).json({
