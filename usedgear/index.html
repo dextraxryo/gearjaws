@@ -788,7 +788,7 @@ const SEARCH_URL_BUILDERS = {
   "Reverb":             (q) => `https://reverb.com/marketplace?query=${encodeURIComponent(q)}`,
   "メルカリ":           (q) => `https://jp.mercari.com/search?keyword=${encodeURIComponent(q)}`,
   "ヤフオク":           (q) => `https://auctions.yahoo.co.jp/search/search?p=${encodeURIComponent(q)}`,
-  "Rock oN":            (q) => `https://store.rock-on.jp/?s=${encodeURIComponent(q)}`,
+  "Rock oN":            (q) => `https://store.miroc.co.jp/p/search/search?criteria.keyword=${encodeURIComponent(q)}&criteria.used=1`,
   "Vintage King":       (q) => `https://vintageking.com/catalogsearch/result/?q=${encodeURIComponent(q)}`,
   "サウンドハウス":     (q) => `https://www.soundhouse.co.jp/search/index/?Keyword=${encodeURIComponent(q)}`,
   "HARD OFF":           (q) => `https://www.hardoff.co.jp/search/?q=${encodeURIComponent(q)}`,
@@ -797,11 +797,14 @@ const SEARCH_URL_BUILDERS = {
   "Five G":             (q) => `https://fiveg.net/?s=${encodeURIComponent(q)}`,
 };
 
-// ホームページURLかどうか判定（パスが空 or "/" のみ）
+// ホームページURLかどうか判定（パスが空 or "/" のみ、かつクエリなし）
+// 注意: fiveg.net は ?pid=XXXXX 形式のURLを使うためクエリも判定に含める
 function isHomepageUrl(url) {
   if(!url || url === "#") return true;
   try {
     const u = new URL(url);
+    // クエリパラメータがある場合は商品・検索ページとみなす（ホームページではない）
+    if (u.search && u.search.length > 1) return false;
     return u.pathname === "/" || u.pathname === "";
   } catch { return true; }
 }

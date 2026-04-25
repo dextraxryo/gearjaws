@@ -30,8 +30,17 @@ function buildSearchUrl(query) {
 
 function parseJpyPrice(str) {
   if (!str) return null;
-  const num = parseInt((str || '').replace(/[^0-9]/g, ''), 10);
-  return isNaN(num) || num <= 0 ? null : num;
+  // 複数の価格が含まれる場合（元値+セール価格 等）は最初の価格だけを取る
+  // 例: "440,000円 ¥1,380,000（税込）" → 440000 (先頭)
+  // パターン: カンマ区切り形式 "1,380,000" / "398,000" を優先、
+  //           カンマなし形式 "148000" はフォールバック
+  const match = str.match(/[¥￥]?\s*([1-9]\d{0,2}(?:,\d{3})+|[1-9]\d+)/);
+  if (match) {
+    const num = parseInt(match[1].replace(/,/g, ''), 10);
+    // 妥当な価格範囲: 1,000円〜100,000,000円
+    return (isNaN(num) || num < 1000 || num > 100000000) ? null : num;
+  }
+  return null;
 }
 
 function mapCondition(str) {
@@ -81,9 +90,21 @@ const TITLE_SELECTORS = [
 ];
 
 // ── 価格セレクター ────────────────────────────────────────────────────────
-// v1.2 確認: <p class="product-list__prices"> が価格コンテナ
+// v1.3: ColorMe 価格構造:
+//   <p class="product-list__prices">
+//     <span class="product-list__price">
+//       <em class="product-list__price--num">398,000</em>円（税込）
+//     </span>
+//   </p>
+// セール品は元値+現値が並ぶため、数値要素を直接狙う方が正確
 const PRICE_SELECTORS = [
-  'p.product-list__prices',            // ✅ 実機確認済み
+  // ✅ 最優先: 価格数値だけの要素 (セール品でも最初の値を取る)
+  'em.product-list__price--sale',      // セール価格（あれば優先）
+  '.product-list__price--sale',
+  'em.product-list__price--num',       // 通常: 価格数値要素
+  '.product-list__price--num',
+  // コンテナ全体（数値のみ取れなかった場合のフォールバック）
+  'p.product-list__prices',            // ✅ v1.2 実機確認済み
   '.product-list__prices',
   '.product-list__price',
   'span.product-list__price',
