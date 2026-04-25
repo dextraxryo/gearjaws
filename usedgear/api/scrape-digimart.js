@@ -161,49 +161,71 @@ function parseDigimart(html, query, shopId, debug) {
     debugInfo.page_title  = $('title').text().trim().slice(0, 120);
     debugInfo.h1_texts    = $('h1').map((_, el) => $(el).text().trim()).get().slice(0, 3);
     debugInfo.item_count  = itemSelector ? $(itemSelector).length : 0;
-    debugInfo.all_classes = [...new Set(
-      $('[class]').map((_, el) => ($(el).attr('class') || '').split(/\s+/)[0]).get()
-    )].filter(Boolean).slice(0, 60);
 
-    if (itemSelector) {
-      debugInfo.first_item_html = $.html($(itemSelector).first()).slice(0, 1500);
-      const firstItem = $(itemSelector).first();
-      // タイトル・価格・ランクのサンプル抽出
-      let sampleTitle = '';
-      for (const sel of TITLE_SELECTORS) {
-        const t = firstItem.find(sel).first().text().trim();
-        if (t) { sampleTitle = t; break; }
+    // 全クラス名を取得（上限200 — 商品リスト部分まで見えるように拡張）
+    const allClasses = [...new Set(
+      $('[class]').map((_, el) => ($(el).attr('class') || '').split(/\s+/)[0]).get()
+    )].filter(Boolean);
+    debugInfo.all_classes_count = allClasses.length;
+    debugInfo.all_classes       = allClasses.slice(0, 200);
+
+    // /cat/ を含むリンク = Digimart 商品URL パターン (DI########)
+    // これが見つかれば SSR で商品が埋め込まれている証拠
+    const catLinks = [];
+    $('a[href*="/cat/"]').each((i, el) => {
+      if (i >= 10) return false;
+      catLinks.push({
+        href: $(el).attr('href'),
+        text: $(el).text().trim().slice(0, 60),
+        cls:  $(el).attr('class') || '',
+        parentCls: $(el).parent().attr('class') || '',
+      });
+    });
+    debugInfo.cat_links = catLinks; // 商品リンクが見つかればここに出る
+
+    // 価格パターン検索 — ¥ や 円 を含む要素を最大10件
+    const priceEls = [];
+    $('*').each((_, el) => {
+      if (priceEls.length >= 10) return false;
+      const text = $(el).children().length === 0 ? $(el).text().trim() : '';
+      if (text && /[¥￥]|円/.test(text) && text.length < 30) {
+        priceEls.push({ tag: el.name, cls: $(el).attr('class') || '', text });
       }
-      let samplePrice = '';
-      for (const sel of PRICE_SELECTORS) {
-        const p = firstItem.find(sel).first().text().trim();
-        if (p) { samplePrice = p; break; }
+    });
+    debugInfo.price_elements = priceEls;
+
+    // HTML の中央付近を抜き出す（ヘッダー後 = 商品リストがある可能性）
+    // 全 HTML の 30%〜40% 付近を表示
+    const rawHtml = $.html();
+    const mid = Math.floor(rawHtml.length * 0.30);
+    debugInfo.html_slice_30pct = rawHtml.slice(mid, mid + 2000);
+
+    // __NEXT_DATA__ (Next.js SSR データ埋め込み)
+    const nextDataEl = $('script#__NEXT_DATA__');
+    if (nextDataEl.length) {
+      const raw = nextDataEl.html() || '';
+      try {
+        const nd = JSON.parse(raw);
+        // props.pageProps 以下に商品データがある場合が多い
+        const pageProps = nd?.props?.pageProps ?? {};
+        debugInfo.next_data_keys      = Object.keys(pageProps).slice(0, 20);
+        debugInfo.next_data_snippet   = raw.slice(0, 1200);
+      } catch {
+        debugInfo.next_data_snippet = raw.slice(0, 1200);
       }
-      let sampleRank = '';
-      for (const sel of CONDITION_SELECTORS) {
-        const r = firstItem.find(sel).first().text().trim();
-        if (r) { sampleRank = r; break; }
-      }
-      debugInfo.sample_title = sampleTitle;
-      debugInfo.sample_price = samplePrice;
-      debugInfo.sample_rank  = sampleRank;
     }
 
-    // <script> 内 JSON-LD / __NEXT_DATA__ を確認 (SSR データ埋め込みを探す)
-    const scriptContents = [];
+    // JSON-LD
+    const jsonLdContents = [];
     $('script[type="application/ld+json"]').each((i, el) => {
       if (i >= 3) return false;
-      scriptContents.push($(el).html()?.slice(0, 600) ?? '');
+      jsonLdContents.push(($(el).html() ?? '').slice(0, 400));
     });
-    // __NEXT_DATA__ は Next.js のサーバーサイドデータ
-    $('script#__NEXT_DATA__').each((_, el) => {
-      scriptContents.push(('[__NEXT_DATA__] ' + ($(el).html()?.slice(0, 800) ?? '')));
-    });
-    if (scriptContents.length) debugInfo.json_scripts = scriptContents;
+    if (jsonLdContents.length) debugInfo.json_ld = jsonLdContents;
 
     // data-* 属性チェック
     debugInfo.data_attrs = [];
-    $('[data-instrument-id],[data-item-id],[data-product-id],[data-sku]').each((i, el) => {
+    $('[data-instrument-id],[data-item-id],[data-product-id],[data-sku],[data-id]').each((i, el) => {
       if (i >= 5) return false;
       debugInfo.data_attrs.push({
         tag:  el.name,
@@ -211,7 +233,7 @@ function parseDigimart(html, query, shopId, debug) {
         data: Object.fromEntries(
           Object.entries(el.attribs).filter(([k]) => k.startsWith('data-'))
         ),
-        text: $(el).text().trim().slice(0, 100),
+        text: $(el).text().trim().slice(0, 80),
       });
     });
 
