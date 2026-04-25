@@ -285,7 +285,7 @@ module.exports = async function handler(req, res) {
 
   try {
     // 全プラットフォームを並列検索（どれかが失敗しても続行）
-    const [reverbResults, ebayResults, rockonResults, vintagekingResults, yahooResults, fivegResults] = await Promise.all([
+    const [reverbResults, ebayResults, digimartResults, vintagekingResults, yahooResults, fivegResults] = await Promise.all([
       reverbKey
         ? searchReverb(query, reverbKey).catch(e => {
             console.error('[Reverb] error:', e.message); return [];
@@ -296,9 +296,10 @@ module.exports = async function handler(req, res) {
             console.error('[eBay] error:', e.message); return [];
           })
         : Promise.resolve([]),
-      // Rock oN スクレイピング (store.miroc.co.jp)
-      scrapeInternal(`/api/scrape-rockon?q=${encodeURIComponent(query)}`, req).catch(e => {
-        console.error('[RockOn] error:', e.message); return [];
+      // Digimart スクレイピング — Rock oN (shopId=4727) を含む国内最大プラットフォーム
+      // T-07 の store.miroc.co.jp SPA 問題の代替として T-08 で採用
+      scrapeInternal(`/api/scrape-digimart?q=${encodeURIComponent(query)}`, req).catch(e => {
+        console.error('[Digimart] error:', e.message); return [];
       }),
       // Vintage King スクレイピング（内部 API 呼び出し）
       scrapeInternal(`/api/scrape-vintageking?q=${encodeURIComponent(query)}`, req).catch(e => {
@@ -318,7 +319,7 @@ module.exports = async function handler(req, res) {
     const listings = [
       ...reverbResults,
       ...ebayResults,
-      ...rockonResults,
+      ...digimartResults,
       ...vintagekingResults,
       ...yahooResults,
       ...fivegResults,
@@ -328,12 +329,12 @@ module.exports = async function handler(req, res) {
     listings.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const platformsSearched = [
-      ...(reverbKey                    ? ['Reverb']       : []),
-      ...(ebayAppId                    ? ['eBay']          : []),
-      ...(rockonResults.length > 0     ? ['Rock oN']       : []),
-      ...(vintagekingResults.length > 0 ? ['Vintage King'] : []),
-      ...(yahooResults.length > 0      ? ['ヤフオク']      : []),
-      ...(fivegResults.length > 0      ? ['Five G']        : []),
+      ...(reverbKey                      ? ['Reverb']       : []),
+      ...(ebayAppId                      ? ['eBay']          : []),
+      ...(digimartResults.length > 0     ? ['Digimart']      : []),
+      ...(vintagekingResults.length > 0  ? ['Vintage King']  : []),
+      ...(yahooResults.length > 0        ? ['ヤフオク']      : []),
+      ...(fivegResults.length > 0        ? ['Five G']        : []),
     ];
 
     return res.status(200).json({
