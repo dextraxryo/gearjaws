@@ -1,29 +1,31 @@
 /**
- * /api/scrape-fiveg.js  —  GearJaws v1.1 T-07
+ * /api/scrape-fiveg.js  —  GearJaws v1.2 T-07
  * Five G Music Technology (fiveg.net) スクレイピング
  *
  * GET /api/scrape-fiveg?q=neve+1073&debug=1
  *
- * Five G は カラーミーショップ (GMO) ベースの EC サイト
- * 検索URL: https://fiveg.net/?mode=srh&sort=n&cid=&keyword=neve
+ * 技術メモ:
+ *   - fiveg.net は カラーミーショップ (GMO shop-pro) ベースの EC サイト
+ *   - 検索URL: https://fiveg.net/?mode=srh&sort=n&cid=&keyword=neve
+ *   - ページは EUC-JP エンコーディング → iconv-lite でデコード必須
+ *   - 商品セレクター: li.product-list__unit (v1.2 で確認)
+ *   - タイトル: a.product-list__name (a タグ自体がタイトル要素)
+ *   - 価格: p.product-list__prices 内のテキスト
+ *   - URL: 相対パス ?pid=XXXXX → https://fiveg.net/?pid=XXXXX に補完
  *
- * ColorMe デフォルトテンプレートのセレクター構造:
- *   商品リスト: ul#item_list, ul.item_list, #item_list_content
- *   商品1件: li.item_box, .item_box, li.clearfix
- *   タイトル: p.item_name a, .item_name a
- *   価格:     p.item_price, .item_price, .price
- *
- * 注意: robots.txt / ToS の範囲内で低頻度（Cron週1）での利用を想定
+ * 変更履歴:
+ *   v1.0 (T-07):      新規作成 (ColorMe デフォルトセレクターで試行)
+ *   v1.2 (T-07 fix):  EUC-JP デコード + 正確なセレクター + URL補完
  */
 
 const cheerio = require('cheerio');
+const iconv   = require('iconv-lite');
 
 const USD_RATE = 150;
 const BASE_URL = 'https://fiveg.net';
 
 function buildSearchUrl(query) {
-  const q = encodeURIComponent(query);
-  return `${BASE_URL}/?mode=srh&sort=n&cid=&keyword=${q}`;
+  return `${BASE_URL}/?mode=srh&sort=n&cid=&keyword=${encodeURIComponent(query)}`;
 }
 
 function parseJpyPrice(str) {
@@ -41,83 +43,96 @@ function mapCondition(str) {
   return '普通';
 }
 
-// ── カラーミーショップ セレクター (複数テンプレート対応) ──────────────────
+/** 相対 URL を絶対 URL に変換 */
+function toAbsoluteUrl(href) {
+  if (!href) return BASE_URL;
+  if (href.startsWith('http')) return href;
+  // ?pid=XXXXX 形式 (クエリのみ)
+  if (href.startsWith('?')) return `${BASE_URL}/${href}`;
+  // /path 形式
+  return `${BASE_URL}${href}`;
+}
+
+// ── セレクター (fiveg.net 実機確認済み, v1.2) ─────────────────────────────
 const ITEM_SELECTORS = [
-  // ColorMe デフォルト / 標準テンプレート
+  // ✅ v1.2 実機確認: li.product-list__unit (53件マッチ)
+  '.product-list__unit',
+  'li.product-list__unit',
+  // フォールバック (テンプレート変更時)
   'li.item_box',
   '.item_box',
-  // ColorMe 新デザインテンプレート
-  '.product-list__unit',
-  '.product-list-unit',
   'li.clearfix',
-  // 汎用フォールバック
   '#item_list li',
-  '#item_list_content li',
-  'ul.item_list li',
   '.item_list li',
   '.item',
-  'li.item',
-  '[class*="item_box"]',
 ];
 
+// ── タイトルセレクター ────────────────────────────────────────────────────
+// ✅ v1.2 確認: <a class="product-list__name product-list__text"> が直接タイトル要素
+// ※ .product-list__name a (a の中の a) ではなく a.product-list__name (a 自体) が正しい
 const TITLE_SELECTORS = [
-  // ColorMe 標準
-  'p.item_name a',
-  '.item_name a',
-  'span.item_name a',
-  'div.item_name a',
-  // ColorMe 新テンプレート
-  '.product-list__name a',
-  '.product-list-name a',
+  'a.product-list__name',           // ✅ 実機確認済み
+  '.product-list__name',            // a でない場合のフォールバック
+  'a[class*="product-list__name"]', // クラス名が変わった場合
+  // ColorMe 旧テンプレート
+  'p.item_name a', '.item_name a',
   // 汎用
   'h3 a', 'h2 a', '.name a',
-  '.item_title a',
-  'a.item_link',
 ];
 
+// ── 価格セレクター ────────────────────────────────────────────────────────
+// v1.2 確認: <p class="product-list__prices"> が価格コンテナ
 const PRICE_SELECTORS = [
-  // ColorMe 標準
-  'p.item_price',
-  '.item_price',
-  'span.price',
-  // ColorMe 新テンプレート
+  'p.product-list__prices',            // ✅ 実機確認済み
+  '.product-list__prices',
   '.product-list__price',
-  '.product-price',
-  // 汎用
-  '.price',
-  '[class*="price"]',
-  'em.price',
+  'span.product-list__price',
+  // ColorMe 旧テンプレート
+  'p.item_price', '.item_price',
+  '.price', 'span.price', '[class*="price"]',
 ];
 
+// ── 状態セレクター ────────────────────────────────────────────────────────
 const CONDITION_SELECTORS = [
-  '.item_status', '.condition', '.grade', '.rank',
-  '[class*="condition"]', '[class*="grade"]', '[class*="rank"]',
-  '[class*="status"]',
+  '.product-list__status', '.product-list__condition',
+  '.item_status', '.condition', '.grade',
+  '[class*="condition"]', '[class*="grade"]', '[class*="status"]',
 ];
 
-async function parseFiveG(html, query, debug) {
-  const $ = cheerio.load(html);
+// ── HTML パーサー ─────────────────────────────────────────────────────────
+function parseFiveG(html, query, debug) {
+  const $ = cheerio.load(html, { decodeEntities: true });
   const results = [];
   const debugInfo = { selectors_tried: [] };
 
   let itemSelector = null;
   for (const sel of ITEM_SELECTORS) {
     const count = $(sel).length;
-    debugInfo.selectors_tried.push({ selector: sel, count });
-    if (count > 0 && !itemSelector) itemSelector = sel;
+    if (count > 0) {
+      debugInfo.selectors_tried.push({ selector: sel, count });
+      if (!itemSelector) itemSelector = sel;
+    }
   }
 
   if (debug) {
-    debugInfo.page_title     = $('title').text().trim().slice(0, 100);
-    debugInfo.h1_texts       = $('h1').map((_, el) => $(el).text().trim()).get().slice(0, 3);
-    debugInfo.item_count     = itemSelector ? $(itemSelector).length : 0;
-    debugInfo.result_count_text = $('#result_count, .result_count, .search_result_count').first().text().trim();
-    debugInfo.html_snippet   = $.html().slice(0, 3000);
-    debugInfo.all_classes    = [...new Set(
+    debugInfo.page_title        = $('title').text().trim().slice(0, 100);
+    debugInfo.h1_texts          = $('h1').map((_, el) => $(el).text().trim()).get().slice(0, 3);
+    debugInfo.item_count        = itemSelector ? $(itemSelector).length : 0;
+    debugInfo.encoding_note     = 'iconv-lite (euc-jp) でデコード済み';
+    debugInfo.all_classes       = [...new Set(
       $('[class]').map((_, el) => ($(el).attr('class') || '').split(/\s+/)[0]).get()
-    )].filter(Boolean).slice(0, 40);
+    )].filter(Boolean).slice(0, 50);
+
     if (itemSelector) {
-      debugInfo.first_item_html = $.html($(itemSelector).first()).slice(0, 800);
+      debugInfo.first_item_html = $.html($(itemSelector).first()).slice(0, 1000);
+      // タイトル・価格の抽出確認
+      const firstItem = $(itemSelector).first();
+      const sampleTitle = firstItem.find('a.product-list__name').first().text().trim()
+        || firstItem.find('.product-list__name').first().text().trim();
+      const samplePrice = firstItem.find('p.product-list__prices').first().text().trim()
+        || firstItem.find('.product-list__prices').first().text().trim();
+      debugInfo.sample_title = sampleTitle;
+      debugInfo.sample_price = samplePrice;
     }
     return { results: [], debug: debugInfo };
   }
@@ -127,22 +142,33 @@ async function parseFiveG(html, query, debug) {
   const today = new Date().toISOString().slice(0, 10);
 
   $(itemSelector).each((_, el) => {
-    // タイトル
-    let title = null;
-    let titleHref = '';
+    // ── タイトル ──
+    let title = null, titleHref = '';
     for (const sel of TITLE_SELECTORS) {
       const el2 = $(el).find(sel).first();
+      if (!el2.length) {
+        // セレクター自体が要素の場合（a.product-list__name が el の直接チルド）
+        const self = $(el).filter(sel);
+        if (self.length) {
+          title = self.text().trim();
+          titleHref = self.attr('href') || '';
+          break;
+        }
+        continue;
+      }
       const t = el2.text().trim();
       if (t) { title = t; titleHref = el2.attr('href') || ''; break; }
     }
+    // フォールバック: テキストを持つ最初の a タグ
     if (!title) {
-      const a = $(el).find('a').first();
-      title = a.text().trim();
-      titleHref = a.attr('href') || '';
+      $(el).find('a').each((_, a) => {
+        const t = $(a).text().trim();
+        if (t && t.length > 3) { title = t; titleHref = $(a).attr('href') || ''; return false; }
+      });
     }
-    if (!title) return;
+    if (!title || title.length < 3) return;
 
-    // 価格
+    // ── 価格 ──
     let priceJPY = null;
     for (const sel of PRICE_SELECTORS) {
       const p = $(el).find(sel).first().text().trim();
@@ -150,19 +176,15 @@ async function parseFiveG(html, query, debug) {
     }
     if (!priceJPY) return; // 価格不明はスキップ
 
-    // URL
-    let url = titleHref;
-    if (!url) url = $(el).find(`a[href*="${BASE_URL}"]`).first().attr('href') || '';
-    if (!url) url = $(el).find('a').first().attr('href') || '';
-    if (url && !url.startsWith('http')) url = BASE_URL + url;
+    // ── URL ──
+    const url = toAbsoluteUrl(titleHref || $(el).find('a').first().attr('href') || '');
 
-    // 状態 (ColorMe は状態フィールドを持たないことが多いので title から推測)
-    let condition = '普通';
+    // ── 状態 ──
+    let condition = mapCondition(title);
     for (const sel of CONDITION_SELECTORS) {
       const c = $(el).find(sel).first().text().trim();
       if (c) { condition = mapCondition(c); break; }
     }
-    if (condition === '普通') condition = mapCondition(title);
 
     results.push({
       platform: 'Five G',
@@ -174,7 +196,7 @@ async function parseFiveG(html, query, debug) {
       condition,
       status:   'listing',
       date:     today,
-      url:      url || BASE_URL,
+      url,
       source:   'fiveg_scrape',
     });
   });
@@ -182,6 +204,7 @@ async function parseFiveG(html, query, debug) {
   return { results, debug: debugInfo };
 }
 
+// ── メインハンドラ ─────────────────────────────────────────────────────────
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method !== 'GET') return res.status(405).json({ error: 'GET only' });
@@ -197,11 +220,12 @@ module.exports = async function handler(req, res) {
       'User-Agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
       'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
-      'Accept-Encoding': 'gzip, deflate, br',
+      // EUC-JP サイトのため gzip/br は避ける（文字化けのリスク）
+      'Accept-Encoding': 'identity',
       'Cache-Control':   'no-cache',
-      'Referer':         BASE_URL + '/',
+      'Referer':         `${BASE_URL}/`,
     },
-    signal: AbortSignal.timeout(9000),
+    signal: AbortSignal.timeout(10000),
     redirect: 'follow',
   };
 
@@ -210,15 +234,17 @@ module.exports = async function handler(req, res) {
 
     if (!response.ok) {
       return res.status(200).json({
-        source:   'fiveg_scrape',
-        error:    `HTTP ${response.status}`,
-        url,
-        listings: [],
+        source: 'fiveg_scrape', error: `HTTP ${response.status}`, url, listings: [],
       });
     }
 
-    const html = await response.text();
-    const { results, debug: debugInfo } = await parseFiveG(html, query, debug);
+    // ── EUC-JP デコード ──────────────────────────────────────────────────
+    // fiveg.net は EUC-JP 固定。response.text() は UTF-8 として扱うため文字化けする。
+    // ArrayBuffer → iconv-lite で正しくデコードする。
+    const buf  = await response.arrayBuffer();
+    const html = iconv.decode(Buffer.from(buf), 'euc-jp');
+
+    const { results, debug: debugInfo } = parseFiveG(html, query, debug);
 
     return res.status(200).json({
       source:   'fiveg_scrape',
