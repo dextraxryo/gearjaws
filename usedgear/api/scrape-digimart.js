@@ -79,24 +79,24 @@ function toAbsoluteUrl(href) {
  * 実際の DOM は debug=1 で確認後に絞り込む。
  */
 const ITEM_SELECTORS = [
-  // Digimart 現行 (推定・実機確認前)
+  // ✅ v1.1 debug 実機確認: itemSearchBox が HTML に存在
+  '.itemSearchBox',
+  '#itemSearchBlock .itemSearchBox',
+  '.itemSearchBlock .itemSearchBox',
+  // その他 Digimart 固有クラス候補
+  '.itemSearchBoxWrap',
+  '.instSearchBlock',
+  // 旧推定セレクター (フォールバック)
   '.instrument_list li',
   '.instrumentList__item',
   'li.instrument-item',
-  'li.js-instrument-item',
-  '.search-result-list li',
   '.search-result-item',
   '.c-itemCard',
   '.itemCard',
-  // 旧テンプレート系
   '.item_list li',
   'li.item_box',
-  '.item-box',
-  // 汎用フォールバック
   '[data-instrument-id]',
   '[data-item-id]',
-  'ul.products li',
-  'article.product',
 ];
 
 const TITLE_SELECTORS = [
@@ -169,36 +169,43 @@ function parseDigimart(html, query, shopId, debug) {
     debugInfo.all_classes_count = allClasses.length;
     debugInfo.all_classes       = allClasses.slice(0, 200);
 
-    // /cat/ を含むリンク = Digimart 商品URL パターン (DI########)
-    // これが見つかれば SSR で商品が埋め込まれている証拠
-    const catLinks = [];
-    $('a[href*="/cat/"]').each((i, el) => {
-      if (i >= 10) return false;
-      catLinks.push({
-        href: $(el).attr('href'),
-        text: $(el).text().trim().slice(0, 60),
-        cls:  $(el).attr('class') || '',
-        parentCls: $(el).parent().attr('class') || '',
-      });
+    // DI####### 形式のリンクを探す (Digimart 商品 ID)
+    // href に "DI" を含むもの or /cat/ を含むもの
+    const diLinks = [];
+    $('a').each((i, el) => {
+      if (diLinks.length >= 10) return false;
+      const href = $(el).attr('href') || '';
+      if (/DI\d{8}|\/cat\//.test(href)) {
+        diLinks.push({
+          href,
+          text:      $(el).text().trim().slice(0, 60),
+          cls:       $(el).attr('class') || '',
+          parentTag: $(el).parent()[0]?.name || '',
+          parentCls: $(el).parent().attr('class') || '',
+        });
+      }
     });
-    debugInfo.cat_links = catLinks; // 商品リンクが見つかればここに出る
+    debugInfo.di_links = diLinks; // 商品リンクが見つかればここに出る
 
-    // 価格パターン検索 — ¥ や 円 を含む要素を最大10件
+    // .itemSearchBox の HTML を直接確認
+    const itemBoxHtml = $.html($('.itemSearchBox').first()).slice(0, 2000);
+    debugInfo.itemSearchBox_html = itemBoxHtml || '(not found)';
+
+    // HTML の 50%〜 付近を表示（商品リストが存在する可能性の高い箇所）
+    const rawHtml = $.html();
+    const p50 = Math.floor(rawHtml.length * 0.50);
+    debugInfo.html_slice_50pct = rawHtml.slice(p50, p50 + 2000);
+
+    // 価格パターン検索 — ¥ や 円 を含む要素を最大5件（検索フォームのoption除く）
     const priceEls = [];
-    $('*').each((_, el) => {
-      if (priceEls.length >= 10) return false;
+    $('*:not(option)').each((_, el) => {
+      if (priceEls.length >= 5) return false;
       const text = $(el).children().length === 0 ? $(el).text().trim() : '';
-      if (text && /[¥￥]|円/.test(text) && text.length < 30) {
+      if (text && /[¥￥]/.test(text) && text.length < 40) {
         priceEls.push({ tag: el.name, cls: $(el).attr('class') || '', text });
       }
     });
     debugInfo.price_elements = priceEls;
-
-    // HTML の中央付近を抜き出す（ヘッダー後 = 商品リストがある可能性）
-    // 全 HTML の 30%〜40% 付近を表示
-    const rawHtml = $.html();
-    const mid = Math.floor(rawHtml.length * 0.30);
-    debugInfo.html_slice_30pct = rawHtml.slice(mid, mid + 2000);
 
     // __NEXT_DATA__ (Next.js SSR データ埋め込み)
     const nextDataEl = $('script#__NEXT_DATA__');
