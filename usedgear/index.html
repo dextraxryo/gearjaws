@@ -2375,8 +2375,19 @@ function applySortAndRender() {
   S.sorted = [...S.filtered].sort((a,b)=>{
     if(sort==="date-desc")  return new Date(b.date)-new Date(a.date);
     if(sort==="date-asc")   return new Date(a.date)-new Date(b.date);
-    if(sort==="price-asc")  return a.priceJPY-b.priceJPY;
-    if(sort==="price-desc") return b.priceJPY-a.priceJPY;
+    // 価格ソート: 0円（価格未取得）アイテムは常に末尾
+    if(sort==="price-asc") {
+      if(!a.priceJPY && !b.priceJPY) return 0;
+      if(!a.priceJPY) return 1;
+      if(!b.priceJPY) return -1;
+      return a.priceJPY - b.priceJPY;
+    }
+    if(sort==="price-desc") {
+      if(!a.priceJPY && !b.priceJPY) return 0;
+      if(!a.priceJPY) return 1;
+      if(!b.priceJPY) return -1;
+      return b.priceJPY - a.priceJPY;
+    }
     return 0;
   });
   renderResults();
@@ -2441,7 +2452,12 @@ function rowHTML(r, globalIdx) {
   const usdPrice = r.priceUSD ?? ((r.currency==="USD" && r.price) ? r.price : Math.round((r.priceJPY||0)/USD_RATE));
   const jpyPrice = r.priceJPY || 0;
   let priceStr, priceSub;
-  if(S.currency==="USD") {
+  const noPrice = !jpyPrice && !usdPrice;
+  if (noPrice) {
+    // 価格未取得（Digimart等 JS-rendered）— 元サイトで確認
+    priceStr = `<span style="color:var(--tx3);font-weight:500;font-size:13px;letter-spacing:0.05em">---</span>`;
+    priceSub = `<div style="font-size:10px;color:var(--tx3);margin-top:2px">価格要確認</div>`;
+  } else if(S.currency==="USD") {
     priceStr = `<span style="color:var(--tx1);font-weight:700;font-size:14px">$${usdPrice.toLocaleString()}</span>`;
     priceSub = `<div style="font-size:11px;color:var(--tx3);margin-top:1px">≈¥${jpyPrice.toLocaleString()}</div>`;
   } else {
@@ -2578,11 +2594,16 @@ function openModal(idx) {
 
   const mUsd = r.priceUSD ?? ((r.currency==="USD" && r.price) ? r.price : Math.round((r.priceJPY||0)/USD_RATE));
   const mJpy = r.priceJPY || 0;
-  const priceStr = S.currency==="USD" ? `$${mUsd.toLocaleString()}` : `¥${mJpy.toLocaleString()}`;
+  const noModalPrice = !mJpy && !mUsd;
   const refNote  = t('modal.price.ref', USD_RATE);
-  const price2   = S.currency==="USD"
-    ? `≈ ¥${mJpy.toLocaleString()}（${refNote}）`
-    : (r.currency==="USD" ? `≈ $${mUsd.toLocaleString()}（${refNote}）` : "");
+  const priceStr = noModalPrice
+    ? "---"
+    : (S.currency==="USD" ? `$${mUsd.toLocaleString()}` : `¥${mJpy.toLocaleString()}`);
+  const price2   = noModalPrice
+    ? "元サイトで価格をご確認ください"
+    : (S.currency==="USD"
+        ? `≈ ¥${mJpy.toLocaleString()}（${refNote}）`
+        : (r.currency==="USD" ? `≈ $${mUsd.toLocaleString()}（${refNote}）` : ""));
   document.getElementById("modal-price").textContent  = priceStr;
   document.getElementById("modal-price2").textContent = price2;
   document.getElementById("modal-cond").innerHTML   = `<span style="color:${cc.color}">${t('cond.'+r.condition)||r.condition}</span>`;
