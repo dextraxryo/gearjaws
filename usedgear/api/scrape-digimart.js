@@ -39,9 +39,15 @@ const cheerio = require('cheerio');
 const USD_RATE = 150;
 const BASE_URL = 'https://www.digimart.net';
 
-/** 検索URL構築 */
+/** 検索URL構築
+ *  instrumentType=2 で中古品のみ絞り込み (v1.3 追加・実機確認済み要検証)
+ *  商品ID プレフィックス: DS=新品ショップ在庫, DI=中古品
+ */
 function buildSearchUrl(query, shopId) {
-  const params = new URLSearchParams({ keyword: query });
+  const params = new URLSearchParams({
+    keyword: query,
+    instrumentType: '2',   // 2=中古品のみ (1=新品) — 未確認のためフォールバックあり
+  });
   if (shopId) params.set('shopId', String(shopId));
   return `${BASE_URL}/search?${params}`;
 }
@@ -140,6 +146,16 @@ function parseDigimart(html, query, shopId, debug) {
     debugInfo.item_count  = itemCount;
     debugInfo.item_selector = ITEM_SELECTOR;
 
+    // 商品ID プレフィックス集計 (DS=新品, DI=中古)
+    let dsCount = 0, diCount = 0, otherCount = 0;
+    $(ITEM_SELECTOR).each((_, el) => {
+      const t = $(el).find('ul.itemDateInfo li').first().text().replace('商品ID：','').trim();
+      if (t.startsWith('DS')) dsCount++;
+      else if (t.startsWith('DI')) diCount++;
+      else otherCount++;
+    });
+    debugInfo.item_id_stats = { DS_新品: dsCount, DI_中古: diCount, other: otherCount };
+
     // 最初の3件の HTML を表示（価格・コンディション要素の位置を確認）
     const sampleItems = [];
     $(ITEM_SELECTOR).each((i, el) => {
@@ -180,6 +196,12 @@ function parseDigimart(html, query, shopId, debug) {
   if (!itemCount) return { results: [], debug: debugInfo };
 
   $(ITEM_SELECTOR).each((_, el) => {
+    // ── 商品ID チェック — DS=新品, DI=中古 ──────────────────────────────────
+    // instrumentType=2 が効かない場合のフォールバックフィルタ
+    const itemIdText = $(el).find('ul.itemDateInfo li').first().text().trim();
+    const itemId = itemIdText.replace('商品ID：', '').trim();
+    if (itemId.startsWith('DS')) return; // 新品ショップ在庫はスキップ
+
     // ── タイトル + URL ─────────────────────────────────────────────────────
     let title = null, titleHref = '';
     for (const sel of TITLE_SELECTORS) {
