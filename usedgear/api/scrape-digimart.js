@@ -1,5 +1,5 @@
 /**
- * /api/scrape-digimart.js  —  GearJaws v1.0 T-08
+ * /api/scrape-digimart.js  —  GearJaws v1.2 T-08
  * Digimart (digimart.net) 中古機材スクレイピング
  *
  * GET /api/scrape-digimart?q=neve+1073
@@ -10,12 +10,28 @@
  *   - digimart.net はサーバーサイドレンダリング (SSR) — fetch+cheerio で取得可能
  *   - 文字コード: UTF-8
  *   - 検索URL: https://www.digimart.net/search?keyword=neve&shopId=XXXX
- *   - 商品URL形式: https://www.digimart.net/cat/<category>/DI<id>.html
- *   - コンディションランク: S/A/B/C/D (S=最高)
+ *   - 商品URL形式: /cat{N}/shop{N}/{ID}/ (相対パス → 絶対URL変換必須)
+ *   - 商品ID形式: DS######## / DI######## (DS=新品/ショップ, DI=中古)
+ *   - コンディションランク: S/A/B/C/D (S=最高) — .state クラスに格納
  *   - Rock oN Company は shopId=4727 で出店
+ *
+ * 確認済み DOM 構造 (v1.1 debug 実機):
+ *   <div class="itemSearchBox">
+ *     <ul class="itemDateInfo">
+ *       <li>商品ID：DS10453401</li>
+ *       <li>登録：2026/04/24</li>
+ *     </ul>
+ *     <p class="ttl"><a href="/cat18/shop5396/DS10453401/">商品名</a></p>
+ *     <p>説明テキスト</p>
+ *     <p class="itemShopInfo"><a href="/search?shopNo=5396">ショップ名</a></p>
+ *     <!-- 価格・コンディションは itemSearchBoxLeft に存在すると推定 -->
+ *     <!-- .fixedPrice, .state クラスが all_classes に確認済み -->
+ *   </div>
  *
  * 変更履歴:
  *   v1.0 (T-08): 新規作成 — Rock oN の SPA 問題の代替として Digimart を採用
+ *   v1.1 (T-08): debug 強化 — itemSearchBox 20件確認、DOM 構造判明
+ *   v1.2 (T-08): 本実装 — 確認済みセレクター適用、価格なし商品も URL 付きで返す
  */
 
 const cheerio = require('cheerio');
@@ -53,14 +69,13 @@ function mapCondition(str) {
   const s = (str || '').trim().toUpperCase();
   if (s === 'S' || s.includes('未使用') || s.includes('新品'))     return '新品同様';
   if (s === 'A' || s.includes('非常に良好') || s.includes('美品')) return '新品同様';
-  if (s === 'B' || s.includes('良好') || s.includes('excellent'))  return '良好';
-  if (s === 'C' || s.includes('普通') || s.includes('good'))       return '普通';
+  if (s === 'B' || s.includes('良好') || s.includes('良い'))       return '良好';
+  if (s === 'C' || s.includes('普通'))                             return '普通';
   if (s === 'D' || s.includes('ジャンク') || s.includes('難あり')) return 'ジャンク';
-  // フォールバック: テキストに英語コンディションが入る場合
   const low = s.toLowerCase();
-  if (low.includes('mint') || low.includes('near mint'))            return '新品同様';
-  if (low.includes('very good'))                                    return '良好';
-  if (low.includes('junk') || low.includes('parts'))                return 'ジャンク';
+  if (low.includes('mint') || low.includes('near mint'))           return '新品同様';
+  if (low.includes('very good'))                                   return '良好';
+  if (low.includes('junk') || low.includes('parts'))               return 'ジャンク';
   return '普通';
 }
 
@@ -71,206 +86,114 @@ function toAbsoluteUrl(href) {
   return `${BASE_URL}${href.startsWith('/') ? '' : '/'}${href}`;
 }
 
-// ── セレクター群 (Digimart の DOM 構造に合わせたフォールバック付き) ────────
-
-/**
- * 商品アイテムセレクター
- * Digimart は Next.js / SSR ハイブリッド構成と推定。
- * 実際の DOM は debug=1 で確認後に絞り込む。
+/** ul.itemDateInfo の2番目 li から日付を抽出
+ *  "登録：2026/04/24" → "2026-04-24"
  */
-const ITEM_SELECTORS = [
-  // ✅ v1.1 debug 実機確認: itemSearchBox が HTML に存在
-  '.itemSearchBox',
-  '#itemSearchBlock .itemSearchBox',
-  '.itemSearchBlock .itemSearchBox',
-  // その他 Digimart 固有クラス候補
-  '.itemSearchBoxWrap',
-  '.instSearchBlock',
-  // 旧推定セレクター (フォールバック)
-  '.instrument_list li',
-  '.instrumentList__item',
-  'li.instrument-item',
-  '.search-result-item',
-  '.c-itemCard',
-  '.itemCard',
-  '.item_list li',
-  'li.item_box',
-  '[data-instrument-id]',
-  '[data-item-id]',
-];
+function extractDate($el) {
+  const text = $el.find('ul.itemDateInfo li').eq(1).text().trim();
+  const m = text.match(/(\d{4})\/(\d{2})\/(\d{2})/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : new Date().toISOString().slice(0, 10);
+}
 
+// ── セレクター群 (v1.2 — 実機確認済み) ──────────────────────────────────────
+
+// ✅ 実機確認: .itemSearchBox が 20件マッチ
+const ITEM_SELECTOR = '.itemSearchBox';
+
+// ✅ 実機確認: p.ttl a がタイトル + リンク要素
 const TITLE_SELECTORS = [
-  '.instrument_name a',
-  '.instrumentItem__name a',
-  '.instrument-item__name a',
-  '.c-itemCard__name a',
-  '.itemCard__name a',
-  '.item_name a',
-  '.name a',
+  'p.ttl a',       // ✅ 確認済み
+  '.ttl a',
   'h3 a', 'h2 a',
-  'a[class*="name"]',
-  // タイトル要素自体がリンクの場合
-  'a.instrument_name',
-  'a.item_name',
 ];
 
+// 価格: .fixedPrice が all_classes に存在 — 実機確認待ち
+// 価格なしアイテムも priceJPY:0 で返す（URL は有効）
 const PRICE_SELECTORS = [
-  // 税込価格を優先
-  '.instrument_price .price',
-  '.instrumentItem__price',
-  '.instrument-item__price',
-  '.c-itemCard__price',
-  '.itemCard__price',
-  '.item_price',
-  '[class*="price--tax"]',
-  '[class*="taxIn"]',
-  'em.price', 'span.price', '.price',
-  '[class*="price"]',
+  '.fixedPrice',           // ✅ all_classes に確認済み (値は実機確認待ち)
+  '.price',
+  'em.price',
+  '[class*="price"]:not(option)',
+  '.shopsaleLinkWide',     // 価格リンクに金額が含まれる可能性
 ];
 
+// コンディション: .state が all_classes に存在
 const CONDITION_SELECTORS = [
-  // Digimart コンディションランク (S/A/B/C/D)
-  '.instrument_rank',
-  '.instrumentItem__rank',
-  '.instrument-item__rank',
-  '.c-itemCard__rank',
-  '.itemCard__rank',
-  '.rank', '.condition', '.grade',
+  '.itemState .state',     // ✅ all_classes に state / itemState 確認済み
+  '.state',
+  '.itemState',
   '[class*="rank"]',
   '[class*="condition"]',
-  '[class*="grade"]',
 ];
 
 // ── HTML パーサー ────────────────────────────────────────────────────────────
 function parseDigimart(html, query, shopId, debug) {
   const $ = cheerio.load(html, { decodeEntities: true });
   const results = [];
-  const debugInfo = { selectors_tried: [] };
+  const debugInfo = {};
 
-  // アイテムセレクターの候補を総当たり
-  let itemSelector = null;
-  for (const sel of ITEM_SELECTORS) {
-    const count = $(sel).length;
-    if (count > 0) {
-      debugInfo.selectors_tried.push({ selector: sel, count });
-      if (!itemSelector) itemSelector = sel;
-    }
-  }
+  const itemCount = $(ITEM_SELECTOR).length;
 
   if (debug) {
     debugInfo.page_title  = $('title').text().trim().slice(0, 120);
     debugInfo.h1_texts    = $('h1').map((_, el) => $(el).text().trim()).get().slice(0, 3);
-    debugInfo.item_count  = itemSelector ? $(itemSelector).length : 0;
+    debugInfo.item_count  = itemCount;
+    debugInfo.item_selector = ITEM_SELECTOR;
 
-    // 全クラス名を取得（上限200 — 商品リスト部分まで見えるように拡張）
-    const allClasses = [...new Set(
-      $('[class]').map((_, el) => ($(el).attr('class') || '').split(/\s+/)[0]).get()
-    )].filter(Boolean);
-    debugInfo.all_classes_count = allClasses.length;
-    debugInfo.all_classes       = allClasses.slice(0, 200);
-
-    // DI####### 形式のリンクを探す (Digimart 商品 ID)
-    // href に "DI" を含むもの or /cat/ を含むもの
-    const diLinks = [];
-    $('a').each((i, el) => {
-      if (diLinks.length >= 10) return false;
-      const href = $(el).attr('href') || '';
-      if (/DI\d{8}|\/cat\//.test(href)) {
-        diLinks.push({
-          href,
-          text:      $(el).text().trim().slice(0, 60),
-          cls:       $(el).attr('class') || '',
-          parentTag: $(el).parent()[0]?.name || '',
-          parentCls: $(el).parent().attr('class') || '',
-        });
-      }
-    });
-    debugInfo.di_links = diLinks; // 商品リンクが見つかればここに出る
-
-    // .itemSearchBox の HTML を直接確認
-    const itemBoxHtml = $.html($('.itemSearchBox').first()).slice(0, 2000);
-    debugInfo.itemSearchBox_html = itemBoxHtml || '(not found)';
-
-    // HTML の 50%〜 付近を表示（商品リストが存在する可能性の高い箇所）
-    const rawHtml = $.html();
-    const p50 = Math.floor(rawHtml.length * 0.50);
-    debugInfo.html_slice_50pct = rawHtml.slice(p50, p50 + 2000);
-
-    // 価格パターン検索 — ¥ や 円 を含む要素を最大5件（検索フォームのoption除く）
-    const priceEls = [];
-    $('*:not(option)').each((_, el) => {
-      if (priceEls.length >= 5) return false;
-      const text = $(el).children().length === 0 ? $(el).text().trim() : '';
-      if (text && /[¥￥]/.test(text) && text.length < 40) {
-        priceEls.push({ tag: el.name, cls: $(el).attr('class') || '', text });
-      }
-    });
-    debugInfo.price_elements = priceEls;
-
-    // __NEXT_DATA__ (Next.js SSR データ埋め込み)
-    const nextDataEl = $('script#__NEXT_DATA__');
-    if (nextDataEl.length) {
-      const raw = nextDataEl.html() || '';
-      try {
-        const nd = JSON.parse(raw);
-        // props.pageProps 以下に商品データがある場合が多い
-        const pageProps = nd?.props?.pageProps ?? {};
-        debugInfo.next_data_keys      = Object.keys(pageProps).slice(0, 20);
-        debugInfo.next_data_snippet   = raw.slice(0, 1200);
-      } catch {
-        debugInfo.next_data_snippet = raw.slice(0, 1200);
-      }
-    }
-
-    // JSON-LD
-    const jsonLdContents = [];
-    $('script[type="application/ld+json"]').each((i, el) => {
+    // 最初の3件の HTML を表示（価格・コンディション要素の位置を確認）
+    const sampleItems = [];
+    $(ITEM_SELECTOR).each((i, el) => {
       if (i >= 3) return false;
-      jsonLdContents.push(($(el).html() ?? '').slice(0, 400));
+      sampleItems.push($.html(el).slice(0, 2500));
     });
-    if (jsonLdContents.length) debugInfo.json_ld = jsonLdContents;
+    debugInfo.sample_items_html = sampleItems;
 
-    // data-* 属性チェック
-    debugInfo.data_attrs = [];
-    $('[data-instrument-id],[data-item-id],[data-product-id],[data-sku],[data-id]').each((i, el) => {
-      if (i >= 5) return false;
-      debugInfo.data_attrs.push({
-        tag:  el.name,
-        cls:  $(el).attr('class'),
-        data: Object.fromEntries(
-          Object.entries(el.attribs).filter(([k]) => k.startsWith('data-'))
-        ),
-        text: $(el).text().trim().slice(0, 80),
+    // 価格セレクター候補を全アイテムで試す
+    const priceStats = {};
+    for (const sel of PRICE_SELECTORS) {
+      let found = 0;
+      let sample = '';
+      $(ITEM_SELECTOR).each((_, el) => {
+        const t = $(el).find(sel).first().text().trim();
+        if (t) { found++; if (!sample) sample = t.slice(0, 40); }
       });
-    });
+      if (found > 0) priceStats[sel] = { found, sample };
+    }
+    debugInfo.price_selector_stats = priceStats;
+
+    // コンディションセレクター候補
+    const condStats = {};
+    for (const sel of CONDITION_SELECTORS) {
+      let found = 0;
+      let sample = '';
+      $(ITEM_SELECTOR).each((_, el) => {
+        const t = $(el).find(sel).first().text().trim();
+        if (t) { found++; if (!sample) sample = t.slice(0, 20); }
+      });
+      if (found > 0) condStats[sel] = { found, sample };
+    }
+    debugInfo.condition_selector_stats = condStats;
 
     return { results: [], debug: debugInfo };
   }
 
-  // ── 商品なし ────────────────────────────────────────────────────────────
-  if (!itemSelector) return { results: [], debug: debugInfo };
+  if (!itemCount) return { results: [], debug: debugInfo };
 
-  const today = new Date().toISOString().slice(0, 10);
-
-  $(itemSelector).each((_, el) => {
+  $(ITEM_SELECTOR).each((_, el) => {
     // ── タイトル + URL ─────────────────────────────────────────────────────
     let title = null, titleHref = '';
     for (const sel of TITLE_SELECTORS) {
       const node = $(el).find(sel).first();
-      if (!node.length) continue;
-      const t = node.text().trim();
+      const t = node.text().replace(/\u00a0/g, ' ').trim(); // &nbsp; → space
       if (t) { title = t; titleHref = node.attr('href') || ''; break; }
     }
-    // フォールバック: テキストを持つ最初の <a>
-    if (!title) {
-      $(el).find('a').each((_, a) => {
-        const t = $(a).text().trim();
-        if (t && t.length > 3) {
-          title = t; titleHref = $(a).attr('href') || ''; return false;
-        }
-      });
-    }
     if (!title || title.length < 3) return;
+
+    // ── URL ─────────────────────────────────────────────────────────────────
+    const url = toAbsoluteUrl(titleHref);
+
+    // ── 日付 ────────────────────────────────────────────────────────────────
+    const date = extractDate($(el));
 
     // ── 価格 ────────────────────────────────────────────────────────────────
     let priceJPY = null;
@@ -278,10 +201,7 @@ function parseDigimart(html, query, shopId, debug) {
       const p = $(el).find(sel).first().text().trim();
       if (p) { priceJPY = parseJpyPrice(p); if (priceJPY) break; }
     }
-    if (!priceJPY) return; // 価格不明はスキップ
-
-    // ── URL ─────────────────────────────────────────────────────────────────
-    const url = toAbsoluteUrl(titleHref || $(el).find('a').first().attr('href') || '');
+    // 価格が取れなくても URL 付きでリストに含める（Digimart ページで確認可能）
 
     // ── コンディション ───────────────────────────────────────────────────────
     let condition = mapCondition('');
@@ -289,25 +209,26 @@ function parseDigimart(html, query, shopId, debug) {
       const c = $(el).find(sel).first().text().trim();
       if (c) { condition = mapCondition(c); break; }
     }
-    // タイトルからもランク推定（例: "[Aランク]" 等の表記）
+    // タイトルから [Aランク] / 【B】 形式のランク推定
     if (condition === '普通') {
       const rankMatch = title.match(/[[\[【]([SABCD])[ランク\]】]?/i);
       if (rankMatch) condition = mapCondition(rankMatch[1]);
     }
 
     // ── ショップ名 ───────────────────────────────────────────────────────────
-    const shopName = $(el).find('.shop_name, .shopName, .seller, [class*="shop"]').first().text().trim();
+    const shopName = $(el).find('p.itemShopInfo a').first()
+      .text().replace(/\u00a0/g, ' ').trim();
 
     results.push({
-      platform: 'Digimart',
+      platform:  'Digimart',
       title,
       price:     null,
       currency:  'JPY',
-      priceJPY,
-      priceUSD:  Math.round(priceJPY / USD_RATE),
+      priceJPY:  priceJPY || 0,
+      priceUSD:  priceJPY ? Math.round(priceJPY / USD_RATE) : 0,
       condition,
       status:    'listing',
-      date:      today,
+      date,
       url,
       source:    'digimart_scrape',
       ...(shopName ? { shop: shopName } : {}),
