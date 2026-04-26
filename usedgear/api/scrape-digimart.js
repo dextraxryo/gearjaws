@@ -194,12 +194,6 @@ function parseDigimart(html, query, shopId, debug) {
   if (!itemCount) return { results: [], debug: debugInfo };
 
   $(ITEM_SELECTOR).each((_, el) => {
-    // ── 商品ID チェック — DS=新品, DI=中古 ──────────────────────────────────
-    // instrumentType=2 が効かない場合のフォールバックフィルタ
-    const itemIdText = $(el).find('ul.itemDateInfo li').first().text().trim();
-    const itemId = itemIdText.replace('商品ID：', '').trim();
-    if (itemId.startsWith('DS')) return; // 新品ショップ在庫はスキップ
-
     // ── タイトル + URL ─────────────────────────────────────────────────────
     let title = null, titleHref = '';
     for (const sel of TITLE_SELECTORS) {
