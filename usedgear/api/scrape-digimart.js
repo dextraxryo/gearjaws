@@ -40,14 +40,12 @@ const USD_RATE = 150;
 const BASE_URL = 'https://www.digimart.net';
 
 /** 検索URL構築
- *  instrumentType=2 で中古品のみ絞り込み (v1.3 追加・実機確認済み要検証)
+ *  instrumentType=2 は Digimart では無効パラメータのため使用しない (v1.3 で確認)
+ *  中古品フィルタはパーサー側で DS プレフィックス除外により実施
  *  商品ID プレフィックス: DS=新品ショップ在庫, DI=中古品
  */
 function buildSearchUrl(query, shopId) {
-  const params = new URLSearchParams({
-    keyword: query,
-    instrumentType: '2',   // 2=中古品のみ (1=新品) — 未確認のためフォールバックあり
-  });
+  const params = new URLSearchParams({ keyword: query });
   if (shopId) params.set('shopId', String(shopId));
   return `${BASE_URL}/search?${params}`;
 }
