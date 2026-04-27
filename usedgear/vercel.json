@@ -22,10 +22,6 @@
       "maxDuration": 12,
       "memory": 256
     },
-    "api/scrape-rockon.js": {
-      "maxDuration": 12,
-      "memory": 256
-    },
     "api/scrape-fiveg.js": {
       "maxDuration": 12,
       "memory": 256
