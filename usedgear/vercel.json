@@ -10,6 +10,10 @@
       "maxDuration": 15,
       "memory": 256
     },
+    "api/exchange-rate.js": {
+      "maxDuration": 8,
+      "memory": 128
+    },
     "api/cron-collect.js": {
       "maxDuration": 60,
       "memory": 256

@@ -9,7 +9,7 @@
 // ============================================================
 
 // ── 定数 ─────────────────────────────────────────────────────
-const USD_RATE    = 150;
+const USD_RATE_FALLBACK = 150; // OXR 取得失敗時のフォールバック
 
 // ── 全プラットフォーム共通・関連性フィルター ──────────────────
 const NOISE_EXCLUDE = [
@@ -37,7 +37,7 @@ function isRelevantTitle(title, query) {
   }
   const matchCount = tokens.filter(tok => t.includes(tok)).length;
   return (matchCount / tokens.length) >= (modelTokens.length > 0 ? 0.5 : 1.0);
-} // 参考レート（v1.0でOpen Exchange Rates APIに切り替え予定）
+}
 const REVERB_BASE = 'https://api.reverb.com/api';
 const EBAY_FINDING_BASE = 'https://svcs.ebay.com/services/search/FindingService/v1';
 const PER_PAGE = 50;
@@ -72,16 +72,16 @@ function normalizeReverbStatus(stateSlug) {
   return 'ended';
 }
 
-function normalizeReverbListing(listing) {
+function normalizeReverbListing(listing, usdRate = USD_RATE_FALLBACK) {
   const rawPrice = parseFloat(listing.price?.amount ?? 0);
   const currency = (listing.price?.currency ?? 'USD').toUpperCase();
 
   const priceJPY = currency === 'USD'
-    ? Math.round(rawPrice * USD_RATE)
+    ? Math.round(rawPrice * usdRate)
     : Math.round(rawPrice);
   const priceUSD = currency === 'USD'
     ? rawPrice
-    : Math.round(rawPrice / USD_RATE);
+    : Math.round(rawPrice / usdRate);
 
   const rawDate = listing.published_at ?? listing.created_at ?? '';
   const date = rawDate ? rawDate.slice(0, 10) : new Date().toISOString().slice(0, 10);
@@ -105,7 +105,7 @@ function normalizeReverbListing(listing) {
   };
 }
 
-async function searchReverb(query, apiKey) {
+async function searchReverb(query, apiKey, usdRate = USD_RATE_FALLBACK) {
   const params = new URLSearchParams({ query, per_page: String(PER_PAGE) });
   const headers = {
     'Authorization':  `Bearer ${apiKey}`,
@@ -122,11 +122,11 @@ async function searchReverb(query, apiKey) {
   const results = [];
   if (soldRes.ok) {
     const d = await soldRes.json();
-    results.push(...(d.listings ?? []).map(normalizeReverbListing));
+    results.push(...(d.listings ?? []).map(l => normalizeReverbListing(l, usdRate)));
   }
   if (liveRes.ok) {
     const d = await liveRes.json();
-    results.push(...(d.listings ?? []).map(normalizeReverbListing));
+    results.push(...(d.listings ?? []).map(l => normalizeReverbListing(l, usdRate)));
   }
   return results;
 }
@@ -153,18 +153,18 @@ function normalizeEbayCondition(conditionId) {
 }
 
 // eBay の item オブジェクト → 共通スキーマ
-function normalizeEbayItem(item, status) {
+function normalizeEbayItem(item, status, usdRate = USD_RATE_FALLBACK) {
   // eBay の JSON レスポンスは配列でラップされている
   const title    = (item.title?.[0] ?? '').trim();
   const currency = item.sellingStatus?.[0]?.currentPrice?.[0]?.['@currencyId'] ?? 'USD';
   const rawPrice = parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.['__value__'] ?? 0);
 
   const priceJPY = currency === 'USD'
-    ? Math.round(rawPrice * USD_RATE)
+    ? Math.round(rawPrice * usdRate)
     : Math.round(rawPrice);
   const priceUSD = currency === 'USD'
     ? rawPrice
-    : Math.round(rawPrice / USD_RATE);
+    : Math.round(rawPrice / usdRate);
 
   // 日付: 成約済みは endTime、出品中は startTime
   const rawDate = status === 'sold'
@@ -216,7 +216,7 @@ async function ebayFindingRequest(operation, query, appId) {
   return res.json();
 }
 
-async function searchEbay(query, appId) {
+async function searchEbay(query, appId, usdRate = USD_RATE_FALLBACK) {
   // v1.0: findCompletedItems のみ（成約済み）
   // API コール数を節約するため出品中(findItemsAdvanced)は省略
   // 価格相場調査には成約済みデータが最重要
@@ -232,7 +232,7 @@ async function searchEbay(query, appId) {
     for (const item of items) {
       const state = item.sellingStatus?.[0]?.sellingState?.[0] ?? '';
       const status = state === 'EndedWithSales' ? 'sold' : 'ended';
-      results.push(normalizeEbayItem(item, status));
+      results.push(normalizeEbayItem(item, status, usdRate));
     }
   }
 
@@ -254,6 +254,38 @@ async function scrapeInternal(path, req) {
   if (!res.ok) return [];
   const json = await res.json();
   return json.listings || [];
+}
+
+// ════════════════════════════════════════════════════════════
+// 為替レート取得（/api/exchange-rate 経由・エッジキャッシュ活用）
+// ════════════════════════════════════════════════════════════
+
+async function fetchUsdRate(req) {
+  try {
+    const host  = req.headers['x-forwarded-host'] || req.headers.host || 'gearjaws.vercel.app';
+    const proto = req.headers['x-forwarded-proto'] || 'https';
+    const url   = `${proto}://${host}/api/exchange-rate`;
+    const res   = await fetch(url, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return USD_RATE_FALLBACK;
+    const data  = await res.json();
+    const rate  = data?.rate;
+    return (typeof rate === 'number' && rate > 50 && rate < 500) ? rate : USD_RATE_FALLBACK;
+  } catch (e) {
+    console.warn('[fetchUsdRate] fallback:', e.message);
+    return USD_RATE_FALLBACK;
+  }
+}
+
+// USD 価格を持つスクレイパー結果のレートを再計算
+// （各スクレイパーはハードコードレートで priceJPY を計算済みのため上書き）
+function applyUsdRate(items, usdRate) {
+  if (usdRate === USD_RATE_FALLBACK) return items; // レートが変わらなければスキップ
+  return items.map(item => {
+    if (item.currency === 'USD' && item.priceUSD > 0) {
+      return { ...item, priceJPY: Math.round(item.priceUSD * usdRate) };
+    }
+    return item;
+  });
 }
 
 // ════════════════════════════════════════════════════════════
@@ -284,8 +316,19 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // 全プラットフォームを並列検索（どれかが失敗しても続行）
-    const [reverbResults, ebayResults, digimartResults, vintagekingResults, yahooResults, fivegResults] = await Promise.all([
+    // 為替レートと各プラットフォーム検索を並列実行
+    const [
+      usdRate,
+      reverbResults,
+      ebayResults,
+      digimartResults,
+      vintagekingResults,
+      yahooResults,
+      fivegResults,
+    ] = await Promise.all([
+      // ① 為替レート取得（/api/exchange-rate 経由・エッジキャッシュ活用）
+      fetchUsdRate(req),
+      // ② 各プラットフォーム検索
       reverbKey
         ? searchReverb(query, reverbKey).catch(e => {
             console.error('[Reverb] error:', e.message); return [];
@@ -296,31 +339,31 @@ module.exports = async function handler(req, res) {
             console.error('[eBay] error:', e.message); return [];
           })
         : Promise.resolve([]),
-      // Digimart スクレイピング — Rock oN (shopId=4727) を含む国内最大プラットフォーム
-      // T-07 の store.miroc.co.jp SPA 問題の代替として T-08 で採用
+      // Digimart スクレイピング
       scrapeInternal(`/api/scrape-digimart?q=${encodeURIComponent(query)}`, req).catch(e => {
         console.error('[Digimart] error:', e.message); return [];
       }),
-      // Vintage King スクレイピング（内部 API 呼び出し）
+      // Vintage King スクレイピング（USD 価格）
       scrapeInternal(`/api/scrape-vintageking?q=${encodeURIComponent(query)}`, req).catch(e => {
         console.error('[VintageKing] error:', e.message); return [];
       }),
-      // Yahoo!オークション スクレイピング（内部 API 呼び出し）
+      // Yahoo!オークション スクレイピング
       scrapeInternal(`/api/scrape-yahooauctions?q=${encodeURIComponent(query)}`, req).catch(e => {
         console.error('[YahooAuctions] error:', e.message); return [];
       }),
-      // Five G Music Technology スクレイピング (fiveg.net)
+      // Five G Music Technology スクレイピング
       scrapeInternal(`/api/scrape-fiveg?q=${encodeURIComponent(query)}`, req).catch(e => {
         console.error('[FiveG] error:', e.message); return [];
       }),
     ]);
 
-    // 全プラットフォームの結果を結合し、関連性フィルターを適用
+    // Reverb/eBay はすでに動的レートで正規化済み
+    // スクレイパー結果（Vintage King 等 USD 価格あり）を動的レートで再計算
     const listings = [
       ...reverbResults,
       ...ebayResults,
       ...digimartResults,
-      ...vintagekingResults,
+      ...applyUsdRate(vintagekingResults, usdRate),
       ...yahooResults,
       ...fivegResults,
     ].filter(l => isRelevantTitle(l.title, query));
@@ -343,6 +386,7 @@ module.exports = async function handler(req, res) {
       total: listings.length,
       listings,
       platforms_searched: platformsSearched,
+      usd_rate: usdRate, // フロントエンド表示用
     });
 
   } catch (err) {

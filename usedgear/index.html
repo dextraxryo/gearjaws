@@ -501,6 +501,7 @@
       <button id="results-search-btn" class="btn-primary" style="padding:9px 18px;border-radius:10px;font-size:14px" onclick="doSearch()"><span data-i18n="btn.search">検索</span></button>
       <span id="results-count-text" style="font-size:13px;color:var(--tx3);margin-left:auto;white-space:nowrap;font-weight:500"></span>
       <span id="source-badge" style="display:none;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;letter-spacing:0.03em"></span>
+      <span id="rate-badge" style="display:none;font-size:10px;color:var(--tx3);background:var(--surface2);border:1px solid var(--border);padding:2px 8px;border-radius:12px;font-weight:500;white-space:nowrap" title="Open Exchange Rates より取得">1 USD = ¥150</span>
       <button onclick="toggleMobileFilter()" style="display:none;background:var(--surface2);border:1px solid var(--border-md);color:var(--tx2);padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer" id="mobile-filter-open-btn">
         <i class="fas fa-filter" style="margin-right:4px"></i><span data-i18n="filter.title">フィルタ</span>
       </button>
@@ -1430,7 +1431,7 @@ function genFallback(q) {
 // STATE
 // ═══════════════════════════════════════════
 
-const USD_RATE = 150; // ¥/$ 参考レート
+let USD_RATE = 150; // ¥/$ レート（doSearch 後に動的更新）
 
 // ═══════════════════════════════════════════
 // i18n
@@ -1781,6 +1782,12 @@ async function doSearch() {
     .catch(() => ({ source: 'error', listings: [] }));
 
   const [json] = await Promise.all([apiPromise, minDelayPromise]);
+
+  // 為替レートを動的に更新（API レスポンスに含まれる場合）
+  if (typeof json.usd_rate === 'number' && json.usd_rate > 50 && json.usd_rate < 500) {
+    USD_RATE = json.usd_rate;
+    updateRateBadge(USD_RATE);
+  }
 
   let data = [];
   if (json.listings && json.listings.length > 0) {
@@ -2233,6 +2240,15 @@ function renderSourceBadge() {
   } else {
     badge.style.display = "none";
   }
+}
+
+// 為替レートバッジ更新（検索結果エリアに小さく表示）
+function updateRateBadge(rate) {
+  const el = document.getElementById('rate-badge');
+  if (!el) return;
+  el.textContent   = `1 USD = ¥${Math.round(rate)}`;
+  el.style.display = 'inline-block';
+  el.title         = `リアルタイム為替（Open Exchange Rates）`;
 }
 
 // ═══════════════════════════════════════════
