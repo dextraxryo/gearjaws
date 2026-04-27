@@ -257,19 +257,39 @@ async function scrapeInternal(path, req) {
 }
 
 // ════════════════════════════════════════════════════════════
-// 為替レート取得（/api/exchange-rate 経由・エッジキャッシュ活用）
+// 為替レート取得（OXR 直呼び + Lambda 内メモリキャッシュ）
 // ════════════════════════════════════════════════════════════
+// ※ /api/exchange-rate 経由だと Lambda 間 HTTP でコールドスタート時に
+//    タイムアウトする問題があったため、OXR を直接呼び出す方式に変更。
+//    /api/exchange-rate エンドポイントはフロントエンド直接利用のために残す。
 
-async function fetchUsdRate(req) {
+let _usdRateCache = null; // { rate: number, ts: number }
+const USD_RATE_CACHE_TTL = 60 * 60 * 1000; // 1時間
+
+async function fetchUsdRate() {
+  // ① メモリキャッシュヒット（同一ウォームインスタンス内）
+  if (_usdRateCache && (Date.now() - _usdRateCache.ts) < USD_RATE_CACHE_TTL) {
+    return _usdRateCache.rate;
+  }
+
+  const appId = process.env.OPEN_EXCHANGE_RATES_APP_ID;
+  if (!appId) return USD_RATE_FALLBACK;
+
   try {
-    const host  = req.headers['x-forwarded-host'] || req.headers.host || 'gearjaws.vercel.app';
-    const proto = req.headers['x-forwarded-proto'] || 'https';
-    const url   = `${proto}://${host}/api/exchange-rate`;
-    const res   = await fetch(url, { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) return USD_RATE_FALLBACK;
-    const data  = await res.json();
-    const rate  = data?.rate;
-    return (typeof rate === 'number' && rate > 50 && rate < 500) ? rate : USD_RATE_FALLBACK;
+    const res = await fetch(
+      `https://openexchangerates.org/api/latest.json?app_id=${appId}&symbols=JPY`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) {
+      console.warn('[fetchUsdRate] OXR HTTP error:', res.status);
+      return USD_RATE_FALLBACK;
+    }
+    const data = await res.json();
+    const raw  = data?.rates?.JPY;
+    if (!raw || raw < 50 || raw > 500) return USD_RATE_FALLBACK;
+    const rate = Math.round(raw * 100) / 100;
+    _usdRateCache = { rate, ts: Date.now() };
+    return rate;
   } catch (e) {
     console.warn('[fetchUsdRate] fallback:', e.message);
     return USD_RATE_FALLBACK;
@@ -326,8 +346,8 @@ module.exports = async function handler(req, res) {
       yahooResults,
       fivegResults,
     ] = await Promise.all([
-      // ① 為替レート取得（/api/exchange-rate 経由・エッジキャッシュ活用）
-      fetchUsdRate(req),
+      // ① 為替レート取得（OXR 直呼び・メモリキャッシュあり）
+      fetchUsdRate(),
       // ② 各プラットフォーム検索
       reverbKey
         ? searchReverb(query, reverbKey).catch(e => {
